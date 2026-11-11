@@ -129,6 +129,8 @@ export async function continueAsChat(addr, cx) {
   const cfg = await chatConfig();
   const found = await tuiSession(cfg, agent, pid, cwd, t.labels?.["herdr-chat.session"] ?? null);
   if (!t.parent) return continueInPlace(t, agent, pid, cwd, found, cx);
+  // A sub-agent's host takes over its session file; a TUI with no messages has none.
+  if (!found.session) throw new Error(`this ${NAMES[agent]} session has no messages yet: nothing to continue`);
   const launcher = cfg.host.replace(/herdr-chat-host$/, "herdr-chat-subagent");
   const kill = await hc(["kill", t.address]);
   if (kill.code !== 0) throw new Error(`hc kill ${t.address}: ${kill.stderr.trim()}`);

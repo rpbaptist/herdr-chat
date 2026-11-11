@@ -1,6 +1,7 @@
 // A Claude Code TUI's session: Claude Code registers each live process in
 // <config>/sessions/<pid>.json ({pid, sessionId, cwd}); the transcript is
-// written once the session has a message.
+// written once the session has a message. Before that there is nothing to
+// take over: session null, and the chat starts a new one in the TUI's place.
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { configDir, sessionPath } from "./sessions.ts";
@@ -16,8 +17,7 @@ export function claudeTuiSession(q: TuiQuery): TuiSession {
     }
     if (typeof r?.sessionId !== "string") continue;
     const file = sessionPath(typeof r.cwd === "string" ? r.cwd : q.cwd, r.sessionId);
-    if (!existsSync(file)) throw new Error("this Claude Code session has no messages yet: nothing to continue");
-    return { session: file };
+    return { session: existsSync(file) ? file : null };
   }
   throw new Error("Claude Code didn't register this process (no ~/.claude/sessions/<pid>.json)");
 }

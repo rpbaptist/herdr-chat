@@ -8,7 +8,8 @@ import { execFileSync } from "node:child_process";
  * TUI's, for a chat taking over in place; args: the agent's own arguments for
  * the same, for a sub-agent's new host (its command line is all it gets).
  */
-export type TuiSession = { session: string; model?: string | null; thinking?: string | null; args?: string[] };
+/** session null: the TUI has no messages yet, so a chat starts a new session in its place. */
+export type TuiSession = { session: string | null; model?: string | null; thinking?: string | null; args?: string[] };
 /** pid: the TUI's process (the terminal's foreground); cwd: its folder; label: the terminal's `herdr-chat.session` label, if any. */
 export type TuiQuery = { pid: number; cwd: string; label: string | null };
 

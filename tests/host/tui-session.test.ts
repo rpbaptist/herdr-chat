@@ -33,11 +33,11 @@ test("tui-session: Pi by its label (with the session's model and thinking), Clau
     assert.deepEqual(ask("pi", pid, cwd, {}, pi).ok, { session: pi, model: "anthropic/claude-haiku-4-5", thinking: "low", args: ["--model", "anthropic/claude-haiku-4-5", "--thinking", "low"] });
     assert.match(ask("pi", pid, cwd, {}).error!, /restart it to load the herdr-chat-lock extension/);
 
-    // Claude Code: <config>/sessions/<pid>.json → its transcript; none written yet, a reason.
+    // Claude Code: <config>/sessions/<pid>.json → its transcript; none written yet (no message), no session: a new chat.
     const claude = join(d, "claude");
     mkdirSync(join(claude, "sessions"), { recursive: true });
     writeFileSync(join(claude, "sessions", `${pid}.json`), JSON.stringify({ pid, sessionId: "abc-123", cwd }));
-    assert.match(ask("claude", pid, cwd, { CLAUDE_CONFIG_DIR: claude }).error!, /no messages yet/);
+    assert.deepEqual(ask("claude", pid, cwd, { CLAUDE_CONFIG_DIR: claude }).ok, { session: null });
     const project = join(claude, "projects", cwd.replace(/[^A-Za-z0-9]/g, "-"));
     mkdirSync(project, { recursive: true });
     writeFileSync(join(project, "abc-123.jsonl"), jsonl([{ type: "user", message: { role: "user", content: "hi" } }]));
