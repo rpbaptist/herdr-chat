@@ -990,6 +990,7 @@ export default class HerdrChat extends View {
         if (!this.store.working()) return this.flash("Nothing to stop", cx);
         return this.abort(cx);
       case "tui":
+      case "switch":
         if (caps?.tui === false) return this.flash(`${this.providerName()} has no terminal UI to continue in`, cx);
         return this.startHandoff("session", "tui", cx);
       case "resume": return toggle("sessions", () => this.openSessionsPicker(cx));

@@ -15,7 +15,8 @@
 // - `new-chat.pi`, `new-chat.claude`, `new-chat.codex`: that agent's chat, in a new tab;
 // - `new-chat.continue:<terminal>`: chat-menu's Continue as chat (an agent's
 //   TUI handed over to a chat on its session, see continueAsChat);
-//   `new-chat.continue`: the same on the focused terminal (the "continue" key).
+//   `new-chat.continue`: the same on the focused terminal (the "continue" key);
+// - `new-chat.switch`: the "switch" key in a terminal (see switchToChat).
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -189,6 +190,20 @@ export async function continueInPlace(t, agent, pid, cwd, found, cx) {
   return mine.pane;
 }
 
+/**
+ * The "switch" key in a terminal (KEYS.md; the chat binds the same chord to
+ * /tui, so one key goes both ways). A chat's own TUI (its /tui terminal, label
+ * herdr-chat.tui) ends, and that chat resumes the session (chat main.js,
+ * finishHandoff). An agent's TUI continues as a chat. Any other terminal: the
+ * error says why.
+ */
+export async function switchToChat(cx) {
+  const t = term(focused()?.terminal);
+  if (!t?.labels?.["herdr-chat.tui"]) return continueAsChat(t?.address, cx);
+  if (["working", "blocked"].includes(word(t.status))) throw new Error("Wait for the run to end, then switch back to the chat.");
+  run("terminal.kill", { terminal: t.address });
+}
+
 // The floating block: commands only, nothing drawn.
 class Commands {
   constructor(cx) {
@@ -199,8 +214,9 @@ class Commands {
           if (c === "open") run("mod.open", { name: "new-chat" });
           else if (CHOICES.some((x) => x.id === c)) await openChat(c);
           else if (c === "continue" || c.startsWith("continue:")) await continueAsChat(c.slice(9), cx);
+          else if (c === "switch") await switchToChat(cx);
         } catch (e) {
-          notify({ title: c.startsWith("continue") ? "Continue as chat" : "New chat", body: String(e?.message ?? e), level: "error" });
+          notify({ title: c.startsWith("continue") || c === "switch" ? "Continue as chat" : "New chat", body: String(e?.message ?? e), level: "error" });
         }
       }
     });

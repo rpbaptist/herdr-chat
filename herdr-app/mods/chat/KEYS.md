@@ -2,7 +2,8 @@
 
 The chat binds these keys in its own key context only: they work while the
 chat pane has the keyboard, never in a terminal pane, and none of them is one
-of Herdr's keys or a key in the shipped `keys.json`. The same actions work for
+of Herdr's keys or a key in the shipped `keys.json`. The one exception is
+`switch`, which install also binds for terminals (see below). The same actions work for
 every agent. An action the agent can't do (permission modes for Pi, effort for
 a model without levels) says so in the hint line under the composer.
 
@@ -17,6 +18,7 @@ a model without levels) says so in the hint line under the composer.
 | `cycleMode` | ⇧⇥ (`shift-tab`) | Shift+Tab (`shift-tab`) | Switches to the next permission mode. For an agent with no permission modes (Pi), it switches to the next thinking level. It works only in the composer, and not while a menu is open. |
 | `stop` | ⌃C (`ctrl-c`) | Ctrl+C (`ctrl-c`) | Stops the agent's run. Esc stops it too. |
 | `tui` | ⌥⌘T (`cmd-alt-t`) | Ctrl+Alt+T (`ctrl-alt-t`) | Continues the chat in the agent's own terminal UI (`/tui`). |
+| `switch` | ⇧⌘I (`cmd-shift-i`) | Ctrl+Shift+I (`ctrl-shift-i`) | One key for both ways. In the chat it is `/tui`. In a terminal it is Herdr's key (see [The switch key](#the-switch-key)). |
 | `resume` | ⇧⌘R (`cmd-shift-r`) | Ctrl+Shift+R (`ctrl-shift-r`) | Opens the sessions picker (`/resume`). |
 | `latest` | ⇧⌘B (`cmd-shift-b`) | Ctrl+Alt+Shift+B (`ctrl-alt-shift-b`) | Scrolls to the latest message. |
 | `focusComposer` | ⌘L (`cmd-l`) | Ctrl+L (`ctrl-l`) | Puts the keyboard back in the composer and closes an open picker. |
@@ -26,6 +28,38 @@ a model without levels) says so in the hint line under the composer.
 on an approval card with nothing typed it answers. Shift+Enter is always a new
 line. If you unbind `steer` (or move it to another chord), Enter in the composer
 types a new line.
+
+## The switch key
+
+`switch` is a chat key and a terminal key with one chord. In the chat it
+does what `tui` does. `./install.sh` also binds the chord in the `terminal`
+section of Herdr's `keys.json` to `new-chat.switch`, so the same chord works
+when a terminal has the keyboard:
+
+- In a terminal that runs Pi, Claude Code or Codex (idle or done): Continue
+  as chat. The chat takes the terminal's place, on the same session.
+- In a chat's own `/tui` terminal (the dialog over the chat): the terminal
+  UI closes and the chat continues the session. While the agent works, it
+  says to wait for the run to end.
+- In any other terminal: a notice says that it is not an agent's TUI. The
+  program does not get the key.
+
+Set it at the top level, like the other chat keys. `null` unbinds it in the
+chat and in terminals. Run `./install.sh` again after a change:
+
+```json
+{ "switch": "ctrl-alt-s" }
+```
+
+If the default chord already has an action in Herdr's `keys.json` (in its
+`terminal` or `global` section), install leaves it there and says so: the
+switch then works in the chat only. A chord you choose replaces what had it in
+a terminal, and uninstall puts that back. With `--no-layout`, the terminal
+side is not bound (it needs the layout's new-chat copy).
+
+The unsent draft does not move between the chat and the terminal UI. The
+chat's composer keeps its text while the terminal UI is open, so it is still
+there when you come back. Text typed in a terminal UI stays there.
 
 ## The queue
 

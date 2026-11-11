@@ -18,10 +18,17 @@
 //   chord the person moved elsewhere goes back to what it was.
 // - keys.json is replaced whole, only if nobody changed it meanwhile.
 //
+// And the chat's "switch" key (the top level of the same file, as the chat's
+// own keys; its default in herdr-app/mods/chat/keys.default.json): in the chat
+// it is /tui, and in keys.json's terminal section it is new-chat.switch, so
+// one chord goes both ways. A default chord that something else has is left
+// to it, and says so. The record keeps it under "terminal".
+//
 //   node install/keys.ts install <app home> [--no-direct] [--platform darwin|linux]
 //   node install/keys.ts uninstall <app home>
 import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 type Json = any;
 export const NAMES = ["open", "pi", "claude", "codex", "continue"] as const;
@@ -30,7 +37,18 @@ export const ACTION: Record<Name, string> = { open: "mod.open:new-chat", pi: "ne
 export const TITLE: Record<Name, string> = { open: "New chat", pi: "Pi chat", claude: "Claude Code chat", codex: "Codex chat", continue: "Continue as chat" };
 
 export type Own = { [chord: string]: { action: string; was: string | null } };
-export type Record2 = { version: 2; global: Own };
+export type Record2 = { version: 2; global: Own; terminal?: Own };
+
+export const SWITCH = "new-chat.switch";
+const SWITCH_TITLE = "Chat/terminal switch";
+const CHAT_KEYS = join(dirname(fileURLToPath(import.meta.url)), "..", "herdr-app", "mods", "chat", "keys.default.json");
+
+/** The chat's default "switch" chords on this platform (keys.default.json, its notMacos section off macOS). */
+export function switchDefault(platform: string): string[] {
+  const raw = JSON.parse(readFileSync(CHAT_KEYS, "utf8"));
+  const v = platform === "darwin" ? raw.switch : raw.notMacos?.switch ?? raw.switch;
+  return chordList(v) ?? [];
+}
 
 export function defaults(platform: string): { open: string; fallback: string | null } {
   return platform === "darwin" ? { open: "cmd-i", fallback: "cmd-j a" } : { open: "ctrl-alt-shift-p", fallback: null };
@@ -49,27 +67,36 @@ export function pretty(chord: string, platform: string): string {
   }).join(" ");
 }
 
+/** A chord, a list of chords or null, as a list (null: unbound); undefined: none of these. */
+const chordList = (v: Json): string[] | null | undefined =>
+  v === null ? null : typeof v === "string" ? [v] : Array.isArray(v) && v.every((x) => typeof x === "string") ? (v as string[]) : undefined;
+
 /** The person's choices: chords per name (`null`: unbound, `undefined`: the default), and what's wrong in the file. */
-export function readPrefs(raw: Json): { prefs: Partial<Record<Name, string[] | null>>; errors: string[] } {
+export function readPrefs(raw: Json): { prefs: Partial<Record<Name, string[] | null>>; switch?: string[] | null; errors: string[] } {
   const prefs: Partial<Record<Name, string[] | null>> = {};
   const errors: string[] = [];
+  let sw: string[] | null | undefined;
+  if (raw?.switch !== undefined) {
+    sw = chordList(raw.switch);
+    if (sw === undefined) errors.push('"switch": a chord, a list of chords or null: the default applies');
+  }
   const g = raw?.global;
-  if (g === undefined) return { prefs, errors };
-  if (!g || typeof g !== "object" || Array.isArray(g)) return { prefs, errors: ['"global" is not an object: the defaults apply'] };
+  if (g === undefined) return { prefs, switch: sw, errors };
+  if (!g || typeof g !== "object" || Array.isArray(g)) return { prefs, switch: sw, errors: [...errors, '"global" is not an object: the defaults apply'] };
   for (const [k, v] of Object.entries(g)) {
     if (!(NAMES as readonly string[]).includes(k)) { errors.push(`"global": unknown "${k}" (known: ${NAMES.join(", ")})`); continue; }
-    const list = v === null ? null : typeof v === "string" ? [v] : Array.isArray(v) && v.every((x) => typeof x === "string") ? (v as string[]) : undefined;
+    const list = chordList(v);
     if (list === undefined) { errors.push(`"global"."${k}": a chord, a list of chords or null`); continue; }
     const bad = (list ?? []).filter((c) => !c.trim() || c !== c.trim());
     if (bad.length) { errors.push(`"global"."${k}": not a chord: ${JSON.stringify(bad[0])}`); continue; }
     prefs[k as Name] = list;
   }
-  return { prefs, errors };
+  return { prefs, switch: sw, errors };
 }
 
-/** The bindings this install owns now (its record). */
-export function owned(rec: Json): Own {
-  return { ...(rec?.global ?? {}) };
+/** The bindings this install owns now in a section of keys.json (its record). */
+export function owned(rec: Json, section: "global" | "terminal" = "global"): Own {
+  return { ...(rec?.[section] ?? {}) };
 }
 
 /** Pure: undo `own` in the global section `g` (a chord the person rebound since stays theirs). */
@@ -84,10 +111,10 @@ export function restore(g: Json, own: Own): string[] {
   return out;
 }
 
-export type Plan = { own: Own; lines: string[]; bound: Partial<Record<Name, string>> };
+export type Plan = { own: Own; terminal: Own; lines: string[]; bound: Partial<Record<Name, string>>; switch?: string };
 
 /** Pure: bind the person's choices into `doc` (after restoring what the last install owned). */
-export function apply(doc: Json, rec: Json, o: { prefs: Partial<Record<Name, string[] | null>>; platform: string; direct: boolean }): Plan {
+export function apply(doc: Json, rec: Json, o: { prefs: Partial<Record<Name, string[] | null>>; switch?: string[] | null; platform: string; direct: boolean }): Plan {
   const g = (doc.global ??= {});
   restore(g, owned(rec));
   const own: Own = {};
@@ -119,13 +146,44 @@ export function apply(doc: Json, rec: Json, o: { prefs: Partial<Record<Name, str
       bind(n, d.fallback);
     } else lines.push(`${p(d.open)}${d.fallback ? ` and ${p(d.fallback)} are` : " is"} taken: New chat has no key. To choose: "global": {"open": "<chord>"} in data/herdr-chat/keys.json, then install again`);
   }
+  const sw = bindSwitch(doc, rec, { chosen: o.switch, defaults: switchDefault(o.platform), direct: o.direct, p });
+  return { own, terminal: sw.own, lines: [...lines, ...sw.lines], bound, switch: sw.bound };
+}
+
+/** Pure: the switch key in keys.json's terminal section (in the chat the chat binds it itself). */
+function bindSwitch(doc: Json, rec: Json, o: { chosen?: string[] | null; defaults: string[]; direct: boolean; p: (c: string) => string }) {
+  const t = doc.terminal ?? {};
+  restore(t, owned(rec, "terminal"));
+  const own: Own = {};
+  const lines: string[] = [];
+  let bound: string | undefined;
+  const list = o.chosen === undefined ? o.defaults : o.chosen ?? [];
+  if (!o.direct) {
+    if (list.length) lines.push(`${SWITCH_TITLE}: ${list.map(o.p).join(", ")} works in the chat only: in a terminal it needs the layout's new-chat copy (install without --no-layout)`);
+  } else for (const c of list) {
+    const was = t[c];
+    const global = doc.global?.[c];
+    if (o.chosen === undefined && ((was !== undefined && was !== SWITCH) || global !== undefined)) {
+      lines.push(`${SWITCH_TITLE}: ${o.p(c)} is taken (${was ?? global}): it works in the chat only. To choose: "switch": "<chord>" in data/herdr-chat/keys.json, then install again`);
+      continue;
+    }
+    if (was !== undefined && was !== SWITCH) lines.push(`${SWITCH_TITLE}: in a terminal, ${o.p(c)} replaces ${was} (uninstall puts it back)`);
+    else if (global !== undefined) lines.push(`${SWITCH_TITLE}: in a terminal, ${o.p(c)} is the switch, not the global section's ${global}`);
+    t[c] = SWITCH;
+    own[c] = { action: SWITCH, was: was ?? null };
+    bound ??= c;
+  }
+  if (Object.keys(t).length) doc.terminal = t;
+  else delete doc.terminal;
   return { own, lines, bound };
 }
 
-/** The one line install ends with: "New chat: ⌘I · Pi chat: ⌘J P". */
-export function summary(bound: Partial<Record<Name, string>>, platform: string): string {
+/** The one line install ends with: "New chat: ⌘I · Pi chat: ⌘J P · Chat/terminal switch: ⌘⇧I". */
+export function summary(bound: Partial<Record<Name, string>>, platform: string, sw?: string): string {
   const parts = NAMES.filter((n) => bound[n]).map((n) => `${TITLE[n]}: ${pretty(bound[n]!, platform)}`);
-  return parts.length ? parts.join(" · ") : "New chat: no key (Herdr's mod.open:new-chat opens it)";
+  if (!parts.length) parts.push("New chat: no key (Herdr's mod.open:new-chat opens it)");
+  if (sw) parts.push(`${SWITCH_TITLE}: ${pretty(sw, platform)}`);
+  return parts.join(" · ");
 }
 
 /** Read keys.json, change it, replace it whole unless it changed meanwhile. Returns whether it wrote. */
@@ -153,20 +211,26 @@ export function install(home: string, o: { direct: boolean; platform: string }):
   const mine = existsSync(join(state, "keys.json")) ? readJson(join(state, "keys.json")) : {};
   const lines: string[] = [];
   if (mine === null) lines.push("data/herdr-chat/keys.json isn't valid JSON: the default keys apply");
-  const { prefs, errors } = readPrefs(mine ?? {});
+  const { prefs, switch: sw, errors } = readPrefs(mine ?? {});
   lines.push(...errors.map((e) => `data/herdr-chat/keys.json: ${e}`));
-  let plan: Plan = { own: {}, lines: [], bound: {} };
+  let plan: Plan = { own: {}, terminal: {}, lines: [], bound: {} };
   const rec = readJson(recFile);
-  editKeys(join(home, "keys.json"), (doc) => { plan = apply(doc, rec, { prefs, platform: o.platform, direct: o.direct }); });
-  writeFileSync(recFile, JSON.stringify({ version: 2, global: plan.own } satisfies Record2, null, 2) + "\n");
-  return [...lines, ...plan.lines, `=${summary(plan.bound, o.platform)}`];
+  editKeys(join(home, "keys.json"), (doc) => { plan = apply(doc, rec, { prefs, switch: sw, platform: o.platform, direct: o.direct }); });
+  writeFileSync(recFile, JSON.stringify({ version: 2, global: plan.own, terminal: plan.terminal } satisfies Record2, null, 2) + "\n");
+  return [...lines, ...plan.lines, `=${summary(plan.bound, o.platform, plan.switch)}`];
 }
 
 export function uninstall(home: string): string[] {
   const recFile = join(home, "data", "herdr-chat", "install.json");
   const rec = readJson(recFile);
   let undone: string[] = [];
-  if (existsSync(join(home, "keys.json"))) editKeys(join(home, "keys.json"), (doc) => { undone = restore(doc.global ?? {}, owned(rec)); });
+  if (existsSync(join(home, "keys.json"))) editKeys(join(home, "keys.json"), (doc) => {
+    undone = restore(doc.global ?? {}, owned(rec));
+    if (doc.terminal) {
+      undone.push(...restore(doc.terminal, owned(rec, "terminal")));
+      if (!Object.keys(doc.terminal).length) delete doc.terminal;
+    }
+  });
   rmSync(recFile, { force: true });
   return [undone.length ? `keys: ${undone.join(", ")} back to what they were` : "keys: nothing of ours in keys.json"];
 }

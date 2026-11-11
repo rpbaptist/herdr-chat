@@ -23,6 +23,7 @@ export const SHORTCUTS = {
   cycleMode: "Next permission mode (next thinking level for an agent without modes)",
   stop: "Stop the agent",
   tui: "Continue in the agent's terminal UI",
+  switch: "Switch to the agent's terminal UI (the same key there: back to the chat)",
   resume: "Resume another session",
   latest: "Scroll to the latest message",
   focusComposer: "Focus the composer",

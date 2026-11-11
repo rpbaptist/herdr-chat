@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT } from "./harness.ts";
+import { switchDefault } from "../../install/keys.ts";
 // @ts-expect-error: a mod module, plain JS without types
 import { keyLabel, platformDefaults } from "../../herdr-app/mods/chat/chords.js";
 
@@ -27,6 +28,13 @@ test("keys on macOS: the shipped cmd chords, no notMacos section", () => {
   assert.ok(!("notMacos" in mac));
   assert.equal(keyLabel("cmd-shift-m", true), "⇧⌘M");
   assert.equal(keyLabel("cmd-alt-t", true), "⌥⌘T");
+});
+
+test("the switch key: one default per platform, the same for the chat and for install's terminal binding", () => {
+  assert.equal(platformDefaults(raw, true).switch, "cmd-shift-i");
+  assert.equal(platformDefaults(raw, false).switch, "ctrl-shift-i");
+  assert.deepEqual(switchDefault("darwin"), [platformDefaults(raw, true).switch]);
+  assert.deepEqual(switchDefault("linux"), [platformDefaults(raw, false).switch]);
 });
 
 test("keys on Linux: Ctrl instead of Super, none of Herdr's keys, labels in words", () => {

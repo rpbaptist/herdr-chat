@@ -39,7 +39,9 @@ https://github.com/user-attachments/assets/cefe4c53-19f6-4c3b-8188-f8480f4c2816
 - **`/fork`** - a new session up to any earlier message, with that message
   back in the composer.
 - **Continue as chat** - right-click a running Pi, Claude Code or Codex
-  terminal → **Continue as chat**: the chat takes over its session.
+  terminal → **Continue as chat**: the chat takes over its session. The
+  switch key (Ctrl+Shift+I, ⇧⌘I on macOS) does it too, and in the chat it
+  goes back to the terminal UI.
 - **Sub-agent chats** - your agents start their helpers as chats. Click a
   helper's row in the agents list to read along or type to it.
 - **A normal Herdr agent** - each chat has a status in the agents list and
@@ -97,6 +99,7 @@ window to "add the mod at github.com/ChmaraX/herdr-chat".
 | ⇧⌘M / ⇧⌘T / ⇧⌘A | Ctrl+Shift+M / Ctrl+Alt+Shift+T / Ctrl+Shift+A | chat | Model, effort, permission-mode picker |
 | ⇧Tab | Shift+Tab | composer | Next permission mode (next thinking level for Pi) |
 | ⌥⌘T | Ctrl+Alt+T | chat | `/tui` |
+| ⇧⌘I | Ctrl+Shift+I | chat, agent terminal | Switch: in the chat, `/tui`; in a Pi, Claude Code or Codex terminal, Continue as chat; in a chat's `/tui` terminal, back to the chat |
 | ⇧⌘R | Ctrl+Shift+R | chat | Resume another session |
 | ⇧⌘N | Ctrl+Alt+Shift+N | chat | A new chat with the same agent, same folder |
 

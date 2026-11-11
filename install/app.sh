@@ -20,6 +20,8 @@
 #   open: the "New chat with…" launcher (default cmd-i; cmd-j a when cmd-i is
 #   taken); pi/claude/codex: that agent's chat at once (unbound by default).
 #   A chord you choose replaces what had it; uninstall puts that back.
+#   The top-level "switch" (a chat key, KEYS.md) is bound in keys.json's
+#   terminal section too, so one chord goes from a terminal to the chat and back.
 #
 # What it does, in the app home ($HERDR_APP_HOME, else ~/.config/herdr-app):
 #   - copies every folder in herdr-app/mods/ into mods/ (only over folders it made itself,
