@@ -27,6 +27,7 @@ import { appHome, closeOverlay, exec, focused, hc, knownAgents, nextCommand, not
 import * as fs from "fs/promises";
 import { randomBytes } from "crypto";
 import { swapBack, swapIn } from "./standin.js";
+import { parentPid, shellIsBack } from "./idle.js";
 
 const CHOICES = [
   { id: "pi", label: "Pi", icon: "pi", tint: true, letter: "p" },
@@ -167,6 +168,7 @@ export async function continueInPlace(t, agent, pid, cwd, found, cx) {
   for (let i = 0; i < 50 && !mine; i++) { mine = panes().find((p) => !before.has(p.pane) && p.mod === "chat" && p.tab === pane.tab); if (!mine) await cx.sleep(100); }
   if (!mine) throw new Error("the chat's pane didn't appear beside the TUI");
   run("pane.focus", { pane: mine.pane });
+  const shellPid = parentPid((await exec("ps", ["-o", "ppid=", "-p", String(pid)])).stdout);
   const k = await exec("kill", ["-TERM", String(pid)]);
   if (k.code !== 0) throw new Error(`kill -TERM ${pid}: ${k.stderr.trim()}`);
   for (let i = 0; i < 100 && (await alive(pid)); i++) await cx.sleep(100);
@@ -176,14 +178,14 @@ export async function continueInPlace(t, agent, pid, cwd, found, cx) {
   }
   // A shell left with its prompt: nothing else runs in it, so it goes. A program
   // that ended with the agent: the pane shows its exit, so it goes too. A prompt's own
-  // commands (git status, an rc file) come and go: up to 3 s for the shell to
-  // be alone in its terminal.
+  // commands (git status, an rc file) come and go: up to 3 s for the shell that
+  // started the agent to be back in front (idle.js).
   let a = null, idleShell = false;
   for (let i = 0; i < 15 && !idleShell; i++) {
     await cx.sleep(200);
     const after = await hc(["get", t.address, "--json"]);
     a = after.code === 0 ? JSON.parse(after.stdout) : null;
-    idleShell = !a || a.state !== "live" || !a.foreground?.pid || a.foreground.pid === a.pid;
+    idleShell = shellIsBack(a, shellPid);
   }
   if (!idleShell) {
     notify({ title: "Continue as chat", body: `The TUI's terminal now runs ${a.foreground?.argv?.[0] ?? "something"}: its pane stays.`, level: "info" });
