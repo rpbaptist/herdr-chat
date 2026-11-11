@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 
 export function clipboardImage(dir = join(tmpdir(), "herdr-chat-images")): Promise<string | null> {
+  if (process.platform === "linux") return linuxClipboardImage(dir);
   if (process.platform !== "darwin") return Promise.resolve(null);
   mkdirSync(dir, { recursive: true });
   const path = join(dir, `paste-${Date.now()}-${randomBytes(3).toString("hex")}.png`);
@@ -26,6 +27,44 @@ export function clipboardImage(dir = join(tmpdir(), "herdr-chat-images")): Promi
       } else resolve(path);
     });
   });
+}
+
+/** The image types a clipboard may hold, in the order a paste takes them. */
+const CLIPBOARD_TYPES: [string, string][] = [["image/png", ".png"], ["image/jpeg", ".jpg"], ["image/gif", ".gif"], ["image/webp", ".webp"]];
+
+function runBytes(cmd: string, args: string[]): Promise<Buffer | null> {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { timeout: 10_000, encoding: "buffer", maxBuffer: 64 * 1024 * 1024 }, (err, stdout) => resolve(err ? null : stdout));
+  });
+}
+
+/**
+ * Wayland (wl-paste) first, then X11 (xclip). Each lists the types the
+ * clipboard offers, so a paste of text asks for no image.
+ */
+async function linuxClipboardImage(dir: string): Promise<string | null> {
+  const tools: { list: [string, string[]]; read: (type: string) => [string, string[]] }[] = [];
+  if (process.env.WAYLAND_DISPLAY) tools.push({ list: ["wl-paste", ["--list-types"]], read: (t) => ["wl-paste", ["--no-newline", "--type", t]] });
+  if (process.env.DISPLAY) {
+    tools.push({
+      list: ["xclip", ["-selection", "clipboard", "-t", "TARGETS", "-o"]],
+      read: (t) => ["xclip", ["-selection", "clipboard", "-t", t, "-o"]],
+    });
+  }
+  for (const tool of tools) {
+    const listed = await runBytes(...tool.list);
+    if (!listed) continue;
+    const offered = new Set(listed.toString("utf8").split("\n").map((l) => l.trim()));
+    const pick = CLIPBOARD_TYPES.find(([type]) => offered.has(type));
+    if (!pick) return null;
+    const bytes = await runBytes(...tool.read(pick[0]));
+    if (!bytes?.length || sniff(bytes) !== pick[0]) return null;
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, `paste-${Date.now()}-${randomBytes(3).toString("hex")}${pick[1]}`);
+    writeFileSync(path, bytes);
+    return path;
+  }
+  return null;
 }
 
 const MIME: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
@@ -49,8 +88,19 @@ function run(cmd: string, args: string[]): Promise<string | null> {
   });
 }
 
-/** Pixel size via sips (macOS). */
+/** ImageMagick 7 is one `magick` program; ImageMagick 6 has `identify` and `convert`. */
+async function magick(tool: "identify" | "convert", args: string[]): Promise<string | null> {
+  return (await run("magick", tool === "identify" ? ["identify", ...args] : args)) ?? (await run(tool, args));
+}
+
+/** Pixel size via sips (macOS) or ImageMagick (elsewhere). */
 async function dimensions(path: string): Promise<{ w: number; h: number } | null> {
+  if (process.platform !== "darwin") {
+    const m = /^(\d+) (\d+)/.exec((await magick("identify", ["-format", "%w %h\\n", path])) ?? "");
+    const w = Number(m?.[1]);
+    const h = Number(m?.[2]);
+    return w > 0 && h > 0 ? { w, h } : null;
+  }
   const out = await run("sips", ["-g", "pixelWidth", "-g", "pixelHeight", path]);
   const w = Number(/pixelWidth:\s*(\d+)/.exec(out ?? "")?.[1]);
   const h = Number(/pixelHeight:\s*(\d+)/.exec(out ?? "")?.[1]);
@@ -58,11 +108,11 @@ async function dimensions(path: string): Promise<{ w: number; h: number } | null
 }
 
 /**
- * Downscales to a MAX_EDGE longest edge with `sips -Z` (macOS only, no
- * dependencies). Returns the original bytes when smaller, not macOS, or sips fails.
+ * Downscales to a MAX_EDGE longest edge with `sips -Z` on macOS, and with
+ * ImageMagick elsewhere when it is installed. Returns the original bytes when
+ * smaller, or when no tool can do it.
  */
 export async function downscale(path: string, bytes: Buffer, mime: string): Promise<Buffer> {
-  if (process.platform !== "darwin") return bytes;
   const dim = await dimensions(path);
   if (!dim || Math.max(dim.w, dim.h) <= MAX_EDGE) return bytes;
   const dir = join(tmpdir(), "herdr-chat-images");
@@ -70,7 +120,11 @@ export async function downscale(path: string, bytes: Buffer, mime: string): Prom
   const tmp = join(dir, `scaled-${Date.now()}-${randomBytes(3).toString("hex")}${extname(path) || ".png"}`);
   try {
     writeFileSync(tmp, bytes);
-    if ((await run("sips", ["-Z", String(MAX_EDGE), tmp])) === null) return bytes;
+    const scaled =
+      process.platform === "darwin"
+        ? await run("sips", ["-Z", String(MAX_EDGE), tmp])
+        : await magick("convert", [tmp, "-resize", `${MAX_EDGE}x${MAX_EDGE}>`, tmp]);
+    if (scaled === null) return bytes;
     const out = readFileSync(tmp);
     return out.length && sniff(out) === mime ? out : bytes;
   } catch {
