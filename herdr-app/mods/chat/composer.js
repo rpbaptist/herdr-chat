@@ -49,6 +49,7 @@ export function bindKeys(cx) {
   b.push({ keystroke: "escape", action: "herdrchat_dialog_escape", context: "HerdrChatDialog" });
   b.push({ keystroke: "escape", action: "herdrchat_dialog_escape", context: "HerdrChatEditor" });
   b.push({ keystroke: "cmd-enter", action: "herdrchat_dialog_enter", context: "HerdrChatEditor > Input" });
+  b.push({ keystroke: "ctrl-enter", action: "herdrchat_dialog_enter", context: "HerdrChatEditor > Input" });
   cx.bind_keys(b);
 }
 

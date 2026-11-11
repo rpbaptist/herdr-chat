@@ -304,7 +304,7 @@ test("install.sh: --no-subagents writes no templates and no notes; a plain insta
   const realApp = execFileSync("sh", ["-c", "command -v herdr-app"], { encoding: "utf8" }).trim();
   const appAs = (v: string) => { const f = join(bin, `herdr-app-${v}`); writeFileSync(f, `#!/bin/sh\n[ "$1" = --version ] && { echo 'herdr-app ${v}'; exit 0; }\nexec '${realApp}' "$@"\n`, { mode: 0o755 }); return f; };
   for (const a of ["pi", "claude", "codex"]) writeFileSync(join(bin, a), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, HERDR_APP_BIN: appAs("9.0.0"), HOME: join(d, "home"), HERDR_APP_HOME: app, XDG_CONFIG_HOME: join(d, "config"), PI_CODING_AGENT_DIR: join(d, "pi"), CLAUDE_CONFIG_DIR: "", CODEX_HOME: "" };
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, HERDR_APP_BIN: appAs("9.0.0"), HOME: join(d, "home"), HERDR_APP_HOME: app, XDG_CONFIG_HOME: join(d, "config"), XDG_DATA_HOME: join(d, "data"), PI_CODING_AGENT_DIR: join(d, "pi"), CLAUDE_CONFIG_DIR: "", CODEX_HOME: "" };
   const sh = (...a: string[]) => {
     const r = spawnSync(join(ROOT, "install.sh"), a, { encoding: "utf8", env });
     assert.equal(r.status, 0, r.stdout + r.stderr);
@@ -320,7 +320,8 @@ test("install.sh: --no-subagents writes no templates and no notes; a plain insta
   const before = { layout: read(app, "mine"), keys: readFileSync(join(app, "keys.json"), "utf8") };
 
   const quiet = sh("--no-subagents");
-  assert.equal(quiet.trim().split("\n").at(-1), "  keys       New chat: ⌘I", "the summary's last line: the real chord");
+  const launcher = process.platform === "darwin" ? "⌘I" : "Ctrl+Alt+Shift+P";
+  assert.equal(quiet.trim().split("\n").at(-1), `  keys       New chat: ${launcher}`, "the summary's last line: the real chord");
   assert.match(quiet, /^ {2}templates  none \(--no-subagents\)$/m);
   assert.match(quiet, /^herdr-chat: Herdr 9\.0\.0 is newer than the tested .*\n/, "the warning first, then the install");
   assert.ok(!existsSync(join(tpl, "pi-chat.md")), "no templates");

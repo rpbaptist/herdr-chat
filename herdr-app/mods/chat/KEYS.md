@@ -6,21 +6,21 @@ of Herdr's keys or a key in the shipped `keys.json`. The same actions work for
 every agent. An action the agent can't do (permission modes for Pi, effort for
 a model without levels) says so in the hint line under the composer.
 
-| Action | Default | What it does |
-|---|---|---|
-| `steer` | ↩ (`enter`) | Sends the message. While the agent works, it **steers**: the message joins the blue "Steer: next turn" lane and reaches the agent at its next step. |
-| `followUp` | ⌥↩ (`alt-enter`) | Sends the message. While the agent works, it **queues a follow-up**: the message waits in the yellow "Follow-up: after this run" lane and is sent when the run ends, one per run. |
-| `model` | ⇧⌘M (`cmd-shift-m`) | Opens the model picker. Press it again to close the picker. |
-| `effort` | ⇧⌘T (`cmd-shift-t`) | Opens the thinking-level (effort) picker. |
-| `cycleEffort` | none | Switches to the next thinking level the model allows, wrapping around, and says it in the hint line ("Thinking: high"). It works only in the composer, and not while a menu is open. |
-| `mode` | ⇧⌘A (`cmd-shift-a`) | Opens the permission-mode picker (Claude Code, Codex). |
-| `cycleMode` | ⇧⇥ (`shift-tab`) | Switches to the next permission mode. For an agent with no permission modes (Pi), it switches to the next thinking level. It works only in the composer, and not while a menu is open. |
-| `stop` | ⌃C (`ctrl-c`) | Stops the agent's run. Esc stops it too. |
-| `tui` | ⌥⌘T (`cmd-alt-t`) | Continues the chat in the agent's own terminal UI (`/tui`). |
-| `resume` | ⇧⌘R (`cmd-shift-r`) | Opens the sessions picker (`/resume`). |
-| `latest` | ⇧⌘B (`cmd-shift-b`) | Scrolls to the latest message. |
-| `focusComposer` | ⌘L (`cmd-l`) | Puts the keyboard back in the composer and closes an open picker. |
-| `newChat` | ⇧⌘N (`cmd-shift-n`) | Opens a new chat tab with the same agent in the same folder. |
+| Action | macOS | Linux, Windows | What it does |
+|---|---|---|---|
+| `steer` | ↩ (`enter`) | Enter (`enter`) | Sends the message. While the agent works, it **steers**: the message joins the blue "Steer: next turn" lane and reaches the agent at its next step. |
+| `followUp` | ⌥↩ (`alt-enter`) | Alt+Enter (`alt-enter`) | Sends the message. While the agent works, it **queues a follow-up**: the message waits in the yellow "Follow-up: after this run" lane and is sent when the run ends, one per run. |
+| `model` | ⇧⌘M (`cmd-shift-m`) | Ctrl+Shift+M (`ctrl-shift-m`) | Opens the model picker. Press it again to close the picker. |
+| `effort` | ⇧⌘T (`cmd-shift-t`) | Ctrl+Alt+Shift+T (`ctrl-alt-shift-t`) | Opens the thinking-level (effort) picker. |
+| `cycleEffort` | none | none | Switches to the next thinking level the model allows, wrapping around, and says it in the hint line ("Thinking: high"). It works only in the composer, and not while a menu is open. |
+| `mode` | ⇧⌘A (`cmd-shift-a`) | Ctrl+Shift+A (`ctrl-shift-a`) | Opens the permission-mode picker (Claude Code, Codex). |
+| `cycleMode` | ⇧⇥ (`shift-tab`) | Shift+Tab (`shift-tab`) | Switches to the next permission mode. For an agent with no permission modes (Pi), it switches to the next thinking level. It works only in the composer, and not while a menu is open. |
+| `stop` | ⌃C (`ctrl-c`) | Ctrl+C (`ctrl-c`) | Stops the agent's run. Esc stops it too. |
+| `tui` | ⌥⌘T (`cmd-alt-t`) | Ctrl+Alt+T (`ctrl-alt-t`) | Continues the chat in the agent's own terminal UI (`/tui`). |
+| `resume` | ⇧⌘R (`cmd-shift-r`) | Ctrl+Shift+R (`ctrl-shift-r`) | Opens the sessions picker (`/resume`). |
+| `latest` | ⇧⌘B (`cmd-shift-b`) | Ctrl+Alt+Shift+B (`ctrl-alt-shift-b`) | Scrolls to the latest message. |
+| `focusComposer` | ⌘L (`cmd-l`) | Ctrl+L (`ctrl-l`) | Puts the keyboard back in the composer and closes an open picker. |
+| `newChat` | ⇧⌘N (`cmd-shift-n`) | Ctrl+Alt+Shift+N (`ctrl-alt-shift-n`) | Opens a new chat tab with the same agent in the same folder. |
 
 `steer` and `followUp` work in the composer only. In a menu Enter picks, and
 on an approval card with nothing typed it answers. Shift+Enter is always a new
@@ -59,6 +59,11 @@ agent's chat at once (`new-chat.pi`…). Left out: the default (⌘I for `open`,
 had it, and uninstall puts that back. In the launcher, P, C and X pick.
 
 macOS turns ⌘. into Esc before an app sees it, so `stop` uses ⌃C.
+
+Off macOS, ⌘ is the Super key, which the window manager takes first, so the
+defaults use Ctrl there (the `notMacos` section of `keys.default.json`). Where
+Herdr already uses the Ctrl chord (Ctrl+Shift+T opens a tab, Ctrl+Shift+B and
+Ctrl+Shift+N are Herdr's too), the chat's default adds Alt.
 
 ## Your own keys
 

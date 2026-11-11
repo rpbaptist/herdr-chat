@@ -11,5 +11,15 @@
   "resume": "cmd-shift-r",
   "latest": "cmd-shift-b",
   "focusComposer": "cmd-l",
-  "newChat": "cmd-shift-n"
+  "newChat": "cmd-shift-n",
+  "notMacos": {
+    "model": "ctrl-shift-m",
+    "effort": "ctrl-alt-shift-t",
+    "mode": "ctrl-shift-a",
+    "tui": "ctrl-alt-t",
+    "resume": "ctrl-shift-r",
+    "latest": "ctrl-alt-shift-b",
+    "focusComposer": "ctrl-l",
+    "newChat": "ctrl-alt-shift-n"
+  }
 }
