@@ -18,10 +18,11 @@ import { v_flex, h_flex, TextareaState, Textarea } from "gpui-base";
 import { alpha, icon } from "./util.js";
 import { follow } from "./menus.js";
 import { keyHint } from "./shortcuts.js";
+import { window as herdrWindow } from "herdr";
 
 const CONTEXTS = ["HerdrChatMenu", "HerdrChatEmpty", "HerdrChatComposer", "HerdrChatAsk"];
 const DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
-export const ACTIONS = ["herdrchat_enter", "herdrchat_up", "herdrchat_down", "herdrchat_tab", "herdrchat_escape", ...DIGITS.map((d) => `herdrchat_digit_${d}`)];
+export const ACTIONS = ["herdrchat_paste", "herdrchat_enter", "herdrchat_up", "herdrchat_down", "herdrchat_tab", "herdrchat_escape", ...DIGITS.map((d) => `herdrchat_digit_${d}`)];
 
 // Once per build of the mod (module state resets on reload, like the keymap
 // entries the old build installed may).
@@ -50,6 +51,11 @@ export function bindKeys(cx) {
   b.push({ keystroke: "escape", action: "herdrchat_dialog_escape", context: "HerdrChatEditor" });
   b.push({ keystroke: "cmd-enter", action: "herdrchat_dialog_enter", context: "HerdrChatEditor > Input" });
   b.push({ keystroke: "ctrl-enter", action: "herdrchat_dialog_enter", context: "HerdrChatEditor > Input" });
+  // Off macOS the text box takes a clipboard with only an image as empty and fires no
+  // paste_other, so Ctrl+V is the chat's: text as the box would paste it, else the image.
+  if (herdrWindow()?.platform !== "macos") {
+    for (const ctx of ["HerdrChatEmpty", "HerdrChatComposer", "HerdrChatAsk"]) b.push({ keystroke: "ctrl-v", action: "herdrchat_paste", context: `${ctx} > Input` });
+  }
   cx.bind_keys(b);
 }
 

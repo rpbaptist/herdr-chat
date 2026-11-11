@@ -842,6 +842,13 @@ export default class HerdrChat extends View {
     this.fire("send", { text: `/${name}${rest ? " " + rest : ""}`, mode: "auto" }, cx);
   }
 
+  // Ctrl+V off macOS (composer.js): the clipboard's text into the box, else its image.
+  paste(cx) {
+    const text = cx.read_from_clipboard();
+    if (text) return this.composer.ta.replace(text);
+    this.pasteImage(cx);
+  }
+
   pasteImage(cx) {
     this.fire("clipboard_image", {}, cx, (d, cx) => {
       if (d?.path) this.composer.chips.push({ path: d.path, label: d.path.split("/").pop() });
@@ -1176,6 +1183,7 @@ export default class HerdrChat extends View {
 
   action(a, cx) {
     this.log(`action ${a}`);
+    if (a === "herdrchat_paste") return this.paste(cx);
     const pk = this.picker;
     const m = this.composer.menu?.items?.length ? this.composer.menu : null;
     const dlg = this.store.state.dialog;
