@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { deflateSync, crc32 } from "node:zlib";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { startHost, idle, Host } from "./harness.ts";
 
 /** A w×h grayscale PNG, no dependencies. */
@@ -31,6 +32,16 @@ function pngSize(b: Buffer): { w: number; h: number } {
 
 const SHOT = makePng(64, 32);
 
+/** sips on macOS; ImageMagick elsewhere, when it is installed. */
+const canDownscale = process.platform === "darwin" || ["magick", "convert"].some((tool) => {
+  try {
+    execFileSync(tool, ["-version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+});
+
 const scenario = {
   prompts: [
     {
@@ -58,7 +69,7 @@ test("images: prompts downscaled to 2000 px, tool-result and user images saved a
     await c.waitFor((x) => idle(x) && x.items.some((i) => i.kind === "assistant" && i.text === "It's a gradient."), 10_000);
 
     const sent = Buffer.from(h.piCommands().find((x) => x.type === "prompt").images[0].data, "base64");
-    if (process.platform === "darwin") {
+    if (canDownscale) {
       const { w, h: ht } = pngSize(sent);
       assert.ok(w === 2000 && (ht === 26 || ht === 27), `longest edge 2000 px, aspect kept: ${w}×${ht}`);
     }
