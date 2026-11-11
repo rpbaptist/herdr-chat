@@ -6,8 +6,11 @@
 // to them, and they don't clash with Herdr's keys or the person's keys.json.
 // Every agent gets the same actions; one the agent can't do says so (main.js).
 
-import { appHome, readTextFile } from "herdr";
+import { appHome, readTextFile, window as herdrWindow } from "herdr";
 import { MOD } from "./util.js";
+import { keyLabel as label, platformDefaults } from "./chords.js";
+
+const macos = () => herdrWindow()?.platform === "macos";
 
 // action → what it does (menus, tooltips, KEYS.md)
 export const SHORTCUTS = {
@@ -64,7 +67,7 @@ export const overridesPath = () => `${appHome()}/data/herdr-chat/keys.json`;
 // Defaults, then the person's file over them. Returns action → [chords].
 export async function loadShortcuts() {
   errors = [];
-  const defaults = await readJson(`${appHome()}/mods/${MOD}/keys.default.json`);
+  const defaults = platformDefaults(await readJson(`${appHome()}/mods/${MOD}/keys.default.json`), macos());
   const mine = await readJson(overridesPath());
   const out = {};
   for (const a of Object.keys(SHORTCUTS)) out[a] = chords(a in mine ? mine[a] : a in defaults ? defaults[a] : FALLBACK[a]);
@@ -107,26 +110,13 @@ export function shortcuts() {
   return map;
 }
 
-// The first chord bound to an action, for people: "⇧⌘M"; null when unbound.
+// The first chord bound to an action, for people: "⇧⌘M" (macOS), "Ctrl+Shift+M"; null when unbound.
 export function keyHint(a) {
   const k = map[a]?.[0];
   return k ? keyLabel(k) : null;
 }
 
-const GLYPH = { cmd: "⌘", ctrl: "⌃", alt: "⌥", shift: "⇧" };
-const ORDER = ["ctrl", "alt", "shift", "cmd"];
-const NAMES = { tab: "⇥", enter: "↩", escape: "Esc", up: "↑", down: "↓", left: "←", right: "→", space: "Space", backspace: "⌫" };
-
-export function keyLabel(chord) {
-  return chord.split(" ").map((step) => {
-    const parts = step.split("-");
-    // "cmd--" (minus) splits into an empty last part
-    const key = parts[parts.length - 1] === "" ? "-" : parts.pop();
-    const mods = parts.filter(Boolean);
-    const m = ORDER.filter((x) => mods.includes(x)).map((x) => GLYPH[x]).join("");
-    return m + (NAMES[key] ?? (key.length === 1 ? key.toUpperCase() : key[0].toUpperCase() + key.slice(1)));
-  }).join(" ");
-}
+export const keyLabel = (chord) => label(chord, macos());
 
 // "Model · /model · ⇧⌘M": a tooltip with the key when one is bound.
 export function withKey(text, a) {

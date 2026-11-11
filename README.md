@@ -89,16 +89,16 @@ window to "add the mod at github.com/ChmaraX/herdr-chat".
 
 ## Keys
 
-| Key | Where | What |
-|---|---|---|
-| ⌘I | anywhere | The launcher (⌘J A when ⌘I is taken) |
-| Enter / ⌥Enter | composer | Send; while the agent works, steer / queue a follow-up |
-| Esc, ⌃C | chat | Stop the run (Esc also closes a menu or dialog) |
-| ⇧⌘M / ⇧⌘T / ⇧⌘A | chat | Model, effort, permission-mode picker |
-| ⇧Tab | composer | Next permission mode (next thinking level for Pi) |
-| ⌥⌘T | chat | `/tui` |
-| ⇧⌘R | chat | Resume another session |
-| ⇧⌘N | chat | A new chat with the same agent, same folder |
+| macOS | Linux, Windows | Where | What |
+|---|---|---|---|
+| ⌘I | Ctrl+Alt+Shift+P | anywhere | The launcher (⌘J A when ⌘I is taken) |
+| Enter / ⌥Enter | Enter / Alt+Enter | composer | Send; while the agent works, steer / queue a follow-up |
+| Esc, ⌃C | Esc, Ctrl+C | chat | Stop the run (Esc also closes a menu or dialog) |
+| ⇧⌘M / ⇧⌘T / ⇧⌘A | Ctrl+Shift+M / Ctrl+Alt+Shift+T / Ctrl+Shift+A | chat | Model, effort, permission-mode picker |
+| ⇧Tab | Shift+Tab | composer | Next permission mode (next thinking level for Pi) |
+| ⌥⌘T | Ctrl+Alt+T | chat | `/tui` |
+| ⇧⌘R | Ctrl+Shift+R | chat | Resume another session |
+| ⇧⌘N | Ctrl+Alt+Shift+N | chat | A new chat with the same agent, same folder |
 
 Change them, or bind a key per agent, in
 `~/.config/herdr-app/data/herdr-chat/keys.json`:
