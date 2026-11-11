@@ -42,7 +42,7 @@ Herdr tab
 | Mod | What it does |
 |---|---|
 | `chat` | The chat itself. Only draws and sends ops; slow work goes through the host. Its keys: [`herdr-app/mods/chat/KEYS.md`](../../herdr-app/mods/chat/KEYS.md) |
-| `new-chat` | The launcher (⌘I) and the `new-chat.*` commands. An empty block of it floats in the layout, so those commands reach it |
+| `new-chat` | The launcher (⌘I) and the `new-chat.*` commands. An empty block of it floats in the layout, so those commands reach it. It also puts a chat's terminal UI in the chat's place and back (see below) |
 | `chat-agents` | An install-time copy of Herdr's agents list: a click on a chat sub-agent opens its chat |
 | `chat-menu` | An install-time copy of Herdr's right-click menu: Open as chat, Continue as chat |
 
@@ -65,6 +65,46 @@ Closing the chat's pane closes the tab: the host watches the layout document
 on herdr-core's event stream and, once its chat's pane is gone, closes its
 own pane and exits ([`host/panewatch.ts`](../../host/panewatch.ts)).
 Quitting the app doesn't change the document, so the host keeps running.
+
+## The chat and its TUI in one place
+
+`/tui`, the switch key, a TUI command (`/mcp`, `/tree`…) and a terminal
+utility (`/login`, `/settings`) run the agent's own program in a terminal
+(`hc run`, label `herdr-chat.tui=<chat>`). That terminal takes the chat's
+place: one write of the layout document (`new-chat`, `standin.js`) puts a
+block for it right after the chat's block, with the chat's size, and marks
+the chat's block `hidden: true`. The terminal then gets its `herdr.space` and
+`herdr.tab` labels and the keyboard. The chat's mod copy keeps running while
+hidden, so the composer keeps its text.
+
+Back: the chat's block shows again and the terminal's block is hidden, until
+the terminal ends and Herdr removes it. The `new-chat` block (always in the
+layout) keeps one rule: a chat is hidden only while a terminal labeled for it
+runs. So the chat shows again however the terminal ends: the switch key
+(which shows the chat first, then ends the terminal, so the tab never shows
+nothing), the agent's own quit, a crash, a closed pane, or an end while the
+app was closed (checked when the block starts). The host resumes the session
+as before (`handoff_started`, protocol.md).
+
+Why this, and not a Herdr command:
+
+- `pane.zoom` on the terminal: the next split in the tab ends the zoom
+  (`split_with`), and then both views show.
+- `terminal.show {terminal, pane}`: shows a terminal in a *terminal* pane
+  only, and the chat is a mod pane.
+- `terminal.park` / `terminal.keep`: park drops the `herdr.space`/`herdr.tab`
+  labels (the agent leaves the agents list); keep places the terminal in a new
+  tab or beside the focused pane, never in a pane's place, and finishes in
+  the background.
+- `pane.swap`: moves two panes that both show.
+- A dialog over the chat (what `/tui` did before): not in the tab, so a split
+  or another tab doesn't follow it.
+
+The cost is the same as for the hidden host pane: no command reaches a
+pane's `hidden`, so the write goes to the layout document, waits until the
+document holds the app's latest change, and lands just before the app's next
+read. While the terminal UI shows, it is a pane of the tab with an agent
+status, so the agents list shows it next to the chat's (hidden) host.
 
 ## Sub-agent chats
 

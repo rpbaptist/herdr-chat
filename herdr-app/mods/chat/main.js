@@ -45,7 +45,6 @@ import { DialogCard } from "./dialogs.js";
 import { Debug } from "./debug.js";
 import { CodeView, owners } from "./codeview.js";
 import { Viewer, readImageSize } from "./viewer.js";
-import { TermBar } from "./termbar.js";
 import { DEFAULT_PROVIDER, MOD, PROVIDERS, PROVIDER_NAMES, alpha, homeRel, icon, message, monoFont, spansText, spinner, typedText, unwrapHc } from "./util.js";
 
 const COL_MAX = 800;
@@ -60,11 +59,6 @@ export default class HerdrChat extends View {
     if (p.viewer) {
       // An enlarged image or diagram, opened by a chat as an overlay (viewer.js: zoom and pan).
       this.viewer = new Viewer(p.viewer, cx);
-      return;
-    }
-    if (p.termbar) {
-      // The bar over an agent's terminal a chat opened in a dialog (termbar.js).
-      this.termbar = new TermBar(p.termbar, cx);
       return;
     }
     this.chat = p.chat ?? "c-unknown";
@@ -320,14 +314,22 @@ export default class HerdrChat extends View {
     }
     if (shown) this.markSeen(me, cx);
     if (this.sub && this.subKey() !== this.lastSubKey) { this.lastSubKey = this.subKey(); changed = true; } // the header bar
-    // The hand-off's terminal (in its dialog): finished, back to the chat (the
-    // host resumes the agent by itself).
+    // The hand-off's terminal (in the chat's place): finished, back to the chat (the
+    // host resumes the agent by itself; new-chat shows the chat again).
     if (this.handoff?.terminal) {
       const t = terminals().find((x) => x.address === this.handoff.terminal);
       // terminals() learns of a new terminal a moment after hc run returns.
       if (t?.state === "live") this.handoff.seen = true;
       const gone = this.handoff.seen ? t?.state !== "live" : Date.now() - this.handoff.at > 15000;
       if (gone) this.finishHandoff(cx);
+      // No pane for it in 8 s: the new-chat block (it does the swap) isn't in this layout.
+      else if (t?.state === "live" && !this.handoff.placed) {
+        if (panes().some((p) => p.terminal === t.address)) this.handoff.placed = true;
+        else if (Date.now() - this.handoff.at > 8000) {
+          this.flash(`${this.providerName()}'s terminal UI couldn't take the chat's place (no new-chat block in this layout: install again)`, cx);
+          this.closeTui(cx);
+        }
+      }
     }
     // A reopened chat in a hand-off: its TUI gone (closed while the mod was away), resume;
     // still running but never reported (the mod reloaded before it could), report it.
@@ -575,15 +577,18 @@ export default class HerdrChat extends View {
   // Any route to the agent (the agents list, agent.next, a notification)
   // lands on the host's hidden pane: give the chat the focus back at once.
   // From render too (focused() changes re-render), not only the 400 ms tick.
+  // While the agent's TUI has the chat's place, that is where focus goes.
   redirectFocus(cx) {
     const me = this.myPane();
     const host = this.hostPane();
-    if (!me || !host || host.tab !== me.tab || focused()?.pane !== host.pane || this.handoff) return false;
+    if (!me || !host || host.tab !== me.tab || focused()?.pane !== host.pane) return false;
+    const tui = this.handoff?.terminal ? panes().find((p) => p.terminal === this.handoff.terminal) : null;
+    if (this.handoff && !tui) return false;
     if (Date.now() - (this.redirectAt ?? 0) < 250) return false;
     this.redirectAt = Date.now();
     this.redirects = (this.redirects ?? 0) + 1;
-    run("pane.focus", { pane: me.pane });
-    this.refocus(cx);
+    run("pane.focus", { pane: (tui ?? me).pane });
+    if (!tui) this.refocus(cx);
     return true;
   }
 
@@ -1576,14 +1581,15 @@ export default class HerdrChat extends View {
 
   // mode "session": the chat's session in the agent's TUI (op handoff → its
   // argv, then resume); "utility": a built-in's own argv (/login, /settings),
-  // in the chat's folder, then resume. Either runs in a terminal with no pane,
-  // shown in a dialog over the chat (openTermDialog): the chat stays where it
-  // is, and the dialog closes when the terminal ends. `input`: typed into the
+  // in the chat's folder, then resume. Either runs in a terminal of its own
+  // that takes the chat's place in the tab (new-chat.show: the chat's pane
+  // hidden, the terminal's shown where it was). When the terminal ends, the
+  // chat shows again (new-chat) and resumes. `input`: typed into the
   // terminal once the agent is idle ("/login"), so the person lands on that screen.
   startHandoff(mode, name, cx, utilityArgv, input) {
     if (this.sub) return this.flash(`/${name} isn't available in a sub-agent's chat: its parent drives this session (/transcript shows the host's terminal)`, cx);
     if (this.handoff) return this.flash(`${this.providerName()}'s terminal is already open`, cx);
-    this.handoff = { mode, name, terminal: null, at: Date.now(), overlay: null };
+    this.handoff = { mode, name, terminal: null, at: Date.now() };
     this.debug.mark();
     cx.spawn(async (cx) => {
       try {
@@ -1597,14 +1603,14 @@ export default class HerdrChat extends View {
           if (!d?.argv?.length) throw new Error("this chat has no session yet");
           argv = prog ? withProgram(d.argv, prog) : [...d.argv];
         } else argv = prog ? withProgram(utilityArgv, prog) : [...utilityArgv];
-        // No herdr.space/tab labels: no pane, so the layout and the chat's tab stay as they are.
+        // No herdr.space/tab labels: new-chat gives it the chat's place, then labels it.
         const r = await hc(["run", "--bg", "--json", "--no-parent", "--name", `chat-tui-${this.chat}`, "--cwd", this.cwd ?? this.store.state.cwd ?? "/",
           "--label", `herdr-chat.tui=${this.chat}`, "--", ...argv]);
         if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || "hc run failed");
         this.handoff.terminal = JSON.parse(r.stdout).address;
         this.handoff.argv = argv;
         this.log(`handoff ${name}: ${argv.join(" ")} in ${this.handoff.terminal}`);
-        this.openTermDialog();
+        this.showInPlace(this.handoff.terminal);
         // The host owns the hand-off: it watches this terminal and resumes when it ends.
         if (mode === "session") this.req("handoff_started", { terminal: this.handoff.terminal }, cx)
           .then(() => { this.handoff && (this.handoff.reported = true); }, () => {});
@@ -1620,18 +1626,12 @@ export default class HerdrChat extends View {
     });
   }
 
-  // The hand-off's terminal in a dialog over the window, under termbar.js's bar.
-  openTermDialog() {
-    const h = this.handoff ?? (this.store.state.handoff?.terminal ? { mode: "session", name: "tui", terminal: this.store.state.handoff.terminal } : null);
-    if (!h?.terminal) return;
-    const agent = this.providerName();
-    const termbar = { terminal: h.terminal, mode: h.mode, provider: this.providerId(), agent,
-      title: h.name === "tui" ? `${agent} · terminal UI` : `${agent} · /${h.name}` };
-    h.overlay = openOverlay({ kind: "dialog", modal: true, width: 0.86, height: 0.86, layout: { type: "column", children: [
-      { type: "block", size: { px: 40 }, content: { mod: MOD, props: { termbar } } },
-      { type: "block", content: { terminal: h.terminal } },
-    ] } });
-    if (!this.handoff) this.handoff = { ...h, at: Date.now(), seen: true, reported: true };
+  // The hand-off's terminal in the chat's place (new-chat's showInPlace: the layout
+  // document is written there, and that block also shows the chat again once it ends).
+  showInPlace(terminal) {
+    if (!terminal) return;
+    run(`new-chat.show:${terminal}`);
+    if (!this.handoff) this.handoff = { mode: "session", name: "tui", terminal, at: Date.now(), seen: true, reported: true };
   }
 
   // Types `text` into a terminal once its agent is idle (`hc wait`, then `hc send --if idle`).
@@ -1650,7 +1650,6 @@ export default class HerdrChat extends View {
     const h = this.handoff;
     this.handoff = null;
     this.confirmClose = null;
-    if (h.overlay) closeOverlay(h.overlay);
     this.log(`handoff ${h.name} finished`);
     if (h.mode === "utility" || !this.hostOwnsHandoff() || !h.reported) this.fire("resume", {}, cx);
     const me = this.myPane();
@@ -1659,14 +1658,11 @@ export default class HerdrChat extends View {
     this.debug.mark();
   }
 
-  // The banner's Show it: the hand-off's terminal in its dialog again (closed, or
-  // gone with an app restart), else its tab when Open as tab gave it one.
+  // The banner's Show it: the hand-off's terminal in the chat's place again.
   showHandoff(cx) {
     const term = this.handoff?.terminal ?? this.store.state.handoff?.terminal ?? null;
     if (!term) return;
-    const pane = panes().find((p) => p.terminal === term);
-    if (pane) run("pane.focus", { pane: pane.pane });
-    else this.openTermDialog();
+    this.showInPlace(term);
     this.debug.mark();
     cx.notify();
   }
@@ -1688,7 +1684,6 @@ export default class HerdrChat extends View {
     const term = this.store.state.handoff?.terminal ?? this.handoff?.terminal ?? null;
     this.confirmClose = null;
     if (term) run("terminal.kill", { terminal: term });
-    if (this.handoff?.overlay) closeOverlay(this.handoff.overlay);
     this.log(`return to chat${term ? `: closed ${term}` : ""}`);
     this.handoff = null;
     this.fire("resume", {}, cx);
@@ -1720,7 +1715,7 @@ export default class HerdrChat extends View {
   }
 
   close() {
-    if (this.viewer || this.termbar) return;
+    if (this.viewer) return;
     owners.delete(this.uid);
     // A sub-agent's host is its parent's: closing its peek or its tab leaves it running.
     if (this.sub || hostTerminal(this.chat)?.parent) {
@@ -1980,7 +1975,6 @@ export default class HerdrChat extends View {
 
   render(cx) {
     if (this.viewer) return this.viewer.render(cx);
-    if (this.termbar) return this.termbar.render(cx);
     // The host's hidden pane took the focus (agent.focus, the agents list, cmd-]): a
     // focus change re-renders, so give it back now, not on the next tick.
     const fp = focused()?.pane;

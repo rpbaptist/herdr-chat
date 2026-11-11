@@ -38,9 +38,10 @@ when a terminal has the keyboard:
 
 - In a terminal that runs Pi, Claude Code or Codex (idle or done): Continue
   as chat. The chat takes the terminal's place, on the same session.
-- In a chat's own `/tui` terminal (the dialog over the chat): the terminal
-  UI closes and the chat continues the session. While the agent works, it
-  says to wait for the run to end.
+- In a chat's own `/tui` terminal (it shows in the chat's place): the chat
+  shows again in the same place, the terminal UI closes, and the chat
+  continues the session. While the agent works, it says to wait for the run
+  to end.
 - In any other terminal: a notice says that it is not an agent's TUI. The
   program does not get the key.
 
@@ -57,8 +58,12 @@ switch then works in the chat only. A chord you choose replaces what had it in
 a terminal, and uninstall puts that back. With `--no-layout`, the terminal
 side is not bound (it needs the layout's new-chat copy).
 
+The chat and the terminal UI share one place in the tab: the one that shows
+hides the other. A split beside either one shows the split and that view,
+never both views.
+
 The unsent draft does not move between the chat and the terminal UI. The
-chat's composer keeps its text while the terminal UI is open, so it is still
+chat's composer keeps its text while the terminal UI shows, so it is still
 there when you come back. Text typed in a terminal UI stays there.
 
 ## The queue

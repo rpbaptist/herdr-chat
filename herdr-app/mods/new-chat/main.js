@@ -16,13 +16,17 @@
 // - `new-chat.continue:<terminal>`: chat-menu's Continue as chat (an agent's
 //   TUI handed over to a chat on its session, see continueAsChat);
 //   `new-chat.continue`: the same on the focused terminal (the "continue" key);
-// - `new-chat.switch`: the "switch" key in a terminal (see switchToChat).
+// - `new-chat.switch`: the "switch" key in a terminal (see switchToChat);
+// - `new-chat.show:<terminal>`: a chat's TUI (label herdr-chat.tui=<chat>)
+//   shown in the chat's place (showInPlace). The block also watches those TUIs:
+//   once one ends, its chat shows again (reconcile).
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { appHome, closeOverlay, exec, focused, hc, knownAgents, nextCommand, notify, openOverlay, panes, props, readTextFile, run, spaces, terminals, theme } from "herdr";
 import * as fs from "fs/promises";
 import { randomBytes } from "crypto";
+import { swapBack, swapIn } from "./standin.js";
 
 const CHOICES = [
   { id: "pi", label: "Pi", icon: "pi", tint: true, letter: "p" },
@@ -192,21 +196,185 @@ export async function continueInPlace(t, agent, pid, cwd, found, cx) {
 
 /**
  * The "switch" key in a terminal (KEYS.md; the chat binds the same chord to
- * /tui, so one key goes both ways). A chat's own TUI (its /tui terminal, label
- * herdr-chat.tui) ends, and that chat resumes the session (chat main.js,
- * finishHandoff). An agent's TUI continues as a chat. Any other terminal: the
- * error says why.
+ * /tui, so one key goes both ways). A chat's own TUI (label herdr-chat.tui):
+ * the chat shows again in its place, then the TUI ends and the chat resumes
+ * the session (chat main.js, finishHandoff). An agent's TUI continues as a
+ * chat. Any other terminal: the error says why.
  */
 export async function switchToChat(cx) {
   const t = term(focused()?.terminal);
-  if (!t?.labels?.["herdr-chat.tui"]) return continueAsChat(t?.address, cx);
+  if (!tuiOf(t)) return continueAsChat(t?.address, cx);
   if (["working", "blocked"].includes(word(t.status))) throw new Error("Wait for the run to end, then switch back to the chat.");
-  run("terminal.kill", { terminal: t.address });
+  try {
+    await reconcile(cx, tuiOf(t));
+  } finally {
+    run("terminal.kill", { terminal: t.address });
+  }
+}
+
+// ---- the chat and its TUI in one place --------------------------------------
+//
+// The chat's /tui (and /mcp, /login…: every terminal a chat hands over to)
+// shows where the chat is: a block for the TUI right after the chat's, and the
+// chat's own marked hidden (standin.js), in one write of Herdr's layout
+// document. A hidden pane stays a pane of its tab, so a split beside the TUI
+// leaves the chat hidden, and the chat's host stays in the agents list. No
+// command reaches a pane's `hidden` (pane.zoom ends with the next split,
+// terminal.show takes terminal panes only, terminal.park drops the agent from
+// the list): see docs/dev/architecture.md "The chat and its TUI in one place".
+
+const HELLO = '{"jsonrpc":"2.0","id":1,"method":"hello","params":{"generation":1}}';
+const sq = (s) => `'${String(s).replace(/'/g, "'\\''")}'`;
+const APP_READ_AFTER_ECHO = 380; // as the chat's beforeAppRead (chat main.js)
+
+// One request over `hc connect` (as the chat's hostpane.js): its result, or throws (`kind` from the core).
+// `at` (epoch ms): connected first, the request is sent then.
+async function rpc(method, params, at = null) {
+  const req = JSON.stringify({ jsonrpc: "2.0", id: 2, method, params });
+  const wait = at ? `perl -MTime::HiRes=time,sleep -e '$d = $ARGV[0] - time; sleep($d) if $d > 0' ${(at / 1000).toFixed(3)}; ` : "";
+  const r = await exec("/bin/sh", ["-c", `{ printf '%s\\n' ${sq(HELLO)}; ${wait}printf '%s\\n' ${sq(req)}; } | hc connect`]);
+  if (r.code !== 0) throw new Error((r.stderr || r.stdout).trim() || `hc connect: exit ${r.code}`);
+  const res = r.stdout.trim().split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).find((x) => x?.id === 2);
+  if (!res) throw new Error(`${method}: no answer`);
+  if (res.error) throw Object.assign(new Error(res.error.message ?? `${method} failed`), { kind: res.error.data?.kind ?? null });
+  return res.result;
+}
+
+// Whether the document holds the tabs and panes the app shows now: a write
+// before the app wrote its own latest change makes the app drop that change
+// (as the chat's hostpane.js inStep).
+function inStep(doc) {
+  const docTabs = new Set(), docPanes = new Set();
+  const leaves = (n) => { if (!n) return; if (!n.children?.length) docPanes.add(n.id); for (const c of n.children ?? []) leaves(c); };
+  for (const s of doc?.spaces ?? []) for (const t of s.tabs ?? []) { docTabs.add(t.id); leaves(t.root); }
+  const local = (id) => !String(id).includes("/");
+  const appTabs = spaces().flatMap((s) => s.tabs.map((t) => t.id)).filter(local);
+  const appPanes = panes().map((p) => p.pane).filter(local);
+  return appTabs.length === docTabs.size && appTabs.every((t) => docTabs.has(t))
+    && appPanes.length === docPanes.size && appPanes.every((p) => docPanes.has(p));
+}
+
+// The time to send a write: just before the app's next read of the document
+// (a label's echo in terminals() marks the app's loop; as the chat's beforeAppRead).
+async function beforeAppRead(address, cx) {
+  if (!address) return null;
+  const n = String(Date.now());
+  const r = await hc(["label", address, `herdr-chat.sync=${n}`]);
+  if (r.code !== 0) return null;
+  for (const until = Date.now() + 1500; Date.now() < until; await cx.sleep(10))
+    if (term(address)?.labels?.["herdr-chat.sync"] === n) return Date.now() + APP_READ_AFTER_ECHO;
+  return null;
+}
+
+// Read, edit, write with the version read. `edit(doc)`: what it did, or null
+// (nothing to do: no write). The app's own change goes first (up to 3 s);
+// a conflict reads again. `echo`: a live terminal for beforeAppRead.
+async function editDoc(edit, echo, cx) {
+  for (let i = 0; ; i++) {
+    const r = await rpc("doc.get", { name: "herdr-app" });
+    const value = r?.value;
+    if (!value?.spaces) throw new Error("no layout document");
+    if (!inStep(value) && i < 10) { await cx.sleep(300); continue; }
+    const did = edit(value);
+    if (!did) return null;
+    const at = await beforeAppRead(echo, cx);
+    try {
+      await rpc("doc.set", { name: "herdr-app", value, version: r.version ?? 0 }, at);
+      return did;
+    } catch (e) {
+      if (e?.kind !== "conflict" || i >= 14) throw e;
+    }
+  }
+}
+
+const newId = (prefix) => `${prefix}${randomBytes(16).toString("hex")}`;
+const tuiOf = (t) => t?.labels?.["herdr-chat.tui"] ?? null; // the chat whose TUI a terminal is
+const isHost = (t) => t.state === "live" && t.labels?.["herdr-chat.role"] === "host" && t.labels?.["herdr-chat.chat"];
+const hostOf = (chat) => terminals().find((t) => isHost(t) && t.labels["herdr-chat.chat"] === chat);
+
+/**
+ * `new-chat.show:<terminal>` (chat main.js startHandoff): a chat's TUI, which
+ * has no pane yet, shows in the chat's place and takes the keyboard. Its
+ * herdr.space/tab labels follow the write, so every client agrees where it is.
+ */
+export async function showInPlace(address, cx) {
+  let t = null;
+  for (let i = 0; i < 30 && !(t = term(address)); i++) await cx.sleep(100); // terminals() learns of it a moment after hc run
+  const chat = tuiOf(t);
+  if (!chat || t.state !== "live") throw new Error(`${address} is not a chat's live terminal UI`);
+  const did = await editDoc((doc) => swapIn(doc, chat, address, newId), address, cx);
+  const tab = did?.tab ?? panes().find((p) => p.terminal === address)?.tab;
+  const space = spaces().find((s) => s.tabs.some((x) => x.id === tab))?.id;
+  if (tab && space && t.labels?.["herdr.tab"] !== tab) await hc(["label", address, `herdr.space=${space}`, `herdr.tab=${tab}`]);
+  let pane = null;
+  for (let i = 0; i < 30 && !(pane = panes().find((p) => p.terminal === address)); i++) await cx.sleep(100);
+  if (!pane) throw new Error(`the chat's pane wasn't found in the layout, so ${address} has no place to show`);
+  run("pane.focus", { pane: pane.pane });
+}
+
+/**
+ * The chats whose TUI isn't live any more show again (swapBack), each in one
+ * write. A chat is hidden only while a TUI of its runs: this rule holds after
+ * any end (the switch key, the agent's own quit, a crash, an app restart).
+ * `only`: a chat to show now even though its TUI still runs (the switch key).
+ */
+async function reconcile(cx, only = null) {
+  const live = new Map(terminals().filter((t) => t.state === "live" && tuiOf(t)).map((t) => [tuiOf(t), t.address]));
+  const shown = [];
+  // Only herdr-chat's own terminals take the sync label.
+  const echo = (only && live.get(only)) ?? terminals().find(isHost)?.address ?? null;
+  await editDoc((doc) => {
+    shown.length = 0;
+    const hidden = [];
+    const visit = (n) => { if (!n) return; if (n.hidden && n.content?.mod === "chat" && n.content.props?.chat) hidden.push(n.content.props.chat); for (const c of n.children ?? []) visit(c); };
+    for (const s of doc.spaces ?? []) for (const t of s.tabs ?? []) visit(t.root);
+    for (const chat of hidden) {
+      if (live.has(chat) && chat !== only) continue;
+      const did = swapBack(doc, chat, live.get(chat) ?? null);
+      if (did) shown.push({ chat, tui: live.get(chat) ?? null, ...did });
+    }
+    return shown.length ? shown : null;
+  }, echo, cx);
+  // The keyboard goes with the view: from the TUI (or a hidden pane of the chat's) to the chat.
+  const f = focused();
+  for (const s of shown) {
+    const stale = !f?.pane || f.pane === s.pane || (s.tui && f.terminal === s.tui) || !panes().some((p) => p.pane === f.pane)
+      || hostOf(s.chat)?.address === f.terminal;
+    if (f?.tab === s.tab && stale) run("pane.focus", { pane: s.pane });
+  }
+  return shown;
+}
+
+// Every 500 ms: a TUI of a chat that ended (or the block's start: one that ended while the app was closed).
+class InPlace {
+  constructor(cx) {
+    this.live = null;
+    this.busy = false;
+    cx.timer.every(500, (cx) => this.tick(cx));
+  }
+
+  tick(cx) {
+    const now = new Set(terminals().filter((t) => t.state === "live" && tuiOf(t)).map((t) => t.address));
+    const ended = this.live === null || [...this.live].some((a) => !now.has(a));
+    if (!ended || this.busy) return;
+    this.busy = true;
+    cx.spawn(async (cx) => {
+      try {
+        await reconcile(cx);
+      } catch (e) {
+        console.log(`new-chat: showing a chat again: ${e?.message ?? e}`);
+      } finally {
+        this.live = now;
+        this.busy = false;
+      }
+    });
+  }
 }
 
 // The floating block: commands only, nothing drawn.
 class Commands {
   constructor(cx) {
+    this.inPlace = new InPlace(cx);
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();
@@ -215,8 +383,10 @@ class Commands {
           else if (CHOICES.some((x) => x.id === c)) await openChat(c);
           else if (c === "continue" || c.startsWith("continue:")) await continueAsChat(c.slice(9), cx);
           else if (c === "switch") await switchToChat(cx);
+          else if (c.startsWith("show:")) await showInPlace(c.slice(5), cx);
         } catch (e) {
-          notify({ title: c.startsWith("continue") || c === "switch" ? "Continue as chat" : "New chat", body: String(e?.message ?? e), level: "error" });
+          const title = c.startsWith("continue") || c === "switch" ? "Continue as chat" : c.startsWith("show:") ? "Terminal UI" : "New chat";
+          notify({ title, body: String(e?.message ?? e), level: "error" });
         }
       }
     });

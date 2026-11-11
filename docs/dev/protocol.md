@@ -233,7 +233,7 @@ type ToolDetail =
 | `resume` | client | sessions picker (`sessions` / `switch_session`) |
 | `reload` | host | `resume` (restart Pi on the same session) |
 | `copy` | client | last assistant text to the clipboard |
-| `tui` | client | hand off to Pi's TUI in a terminal pane (`handoff`, then `resume` when it exits) |
+| `tui` | client | hand off to Pi's TUI in a terminal in the chat's place (`handoff`, then `resume` when it exits) |
 | `login`, `settings`, `scoped-models` | client | run `pi --no-session` in a terminal pane, then `resume` once it exits |
 | `fork` | client | a picker of `fork_points`, then `fork` |
 | `tree`, `export`, `hotkeys` | client | like `tui` (they need the session in Pi's TUI) |
@@ -365,7 +365,7 @@ ToolDetail +=
   - `name` needs `rename`;
   - `fork` needs `fork` (the adapter has `forkPoints` and `fork`);
   - `tui` needs `tui`.
-- **Terminal utilities** (`login`, `settings`, `scoped-models`) are offered only when the adapter has an argv for them. The menu entry carries it as `Command.argv`, and the client runs that argv in a terminal in the chat's cwd (no pane: a dialog over the chat shows it), then sends `resume`.
+- **Terminal utilities** (`login`, `settings`, `scoped-models`) are offered only when the adapter has an argv for them. The menu entry carries it as `Command.argv`, and the client runs that argv in a terminal in the chat's cwd (it shows in the chat's place in the tab, see architecture.md), then sends `resume`.
 - **What to type** (`Command.input`): for a utility or a TUI command, the client types it into the terminal once the agent is idle (`hc wait`, then `hc send --if idle`), so the person lands on that screen. A TUI command's is `/<name>`; a utility's is the adapter's `tuiInput(name)` (Pi: `/login`, `/settings`, `/scoped-models`; Claude Code: `/config` for `settings`).
 
   | provider | login | settings |

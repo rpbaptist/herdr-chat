@@ -34,14 +34,16 @@ https://github.com/user-attachments/assets/cefe4c53-19f6-4c3b-8188-f8480f4c2816
   skills, plus the built-ins (`/model`, `/compact`, `/resume`, `/fork`,
   `/tui`…). A skill becomes a pill in your message.
 - **The agent's own screens** - `/login`, `/settings` and the commands that
-  only exist in the agent's terminal UI open in a dialog over the chat.
-  `/tui` continues the session there.
+  only exist in the agent's terminal UI open in the chat's place in its tab.
+  `/tui` continues the session there. When the terminal UI ends, the chat
+  shows again in the same place and resumes the session.
 - **`/fork`** - a new session up to any earlier message, with that message
   back in the composer.
 - **Continue as chat** - right-click a running Pi, Claude Code or Codex
   terminal → **Continue as chat**: the chat takes over its session. The
-  switch key (Ctrl+Shift+I, ⇧⌘I on macOS) does it too, and in the chat it
-  goes back to the terminal UI.
+  switch key (Ctrl+Shift+I, ⇧⌘I on macOS) does it too. In the chat, the same
+  key puts the terminal UI in the chat's place; in that terminal UI, it puts
+  the chat back. One view shows at a time, in one place in the tab.
 - **Sub-agent chats** - your agents start their helpers as chats. Click a
   helper's row in the agents list to read along or type to it.
 - **A normal Herdr agent** - each chat has a status in the agents list and

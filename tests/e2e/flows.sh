@@ -116,40 +116,46 @@ fi
 
 # --- flow: Pi's TUI hand-off and back ---------------------------------------------------------------
 if want handoff; then
-  step "/tui: Pi's TUI in a dialog over the chat (no pane: the tab stays as it is), then back"
+  step "/tui: Pi's TUI takes the chat's place in its tab (the chat hidden), then back"
   CHAT=$(open_chat handoff)
   ready
   send_text "hello"
   expect '[ "$(phase)" = idle ] && [ "$(count_kind assistant)" -ge 1 ]' "a first answer (the session has a file now)" 15
   SESSION=$(d 'd["sessionFile"]')
-  TAB=$(d 'd["place"]["tab"]'); H=$(d 'd["host"]["address"]')
+  TAB=$(d 'd["place"]["tab"]'); H=$(d 'd["host"]["address"]'); ME=$(d 'd["place"]["pane"]')
+  chat_hidden() { app_doc | python3 -c '
+import json, sys
+doc = json.load(sys.stdin)
+def walk(n):
+    if n.get("id") == sys.argv[1]: print("hidden" if n.get("hidden") else "shown")
+    for c in n.get("children", []): walk(c)
+for s in doc.get("spaces", []):
+    for t in s["tabs"]: walk(t["root"])' "$ME"; }
   : >"$FAKE_TUI_LOG"
   send_text "/tui"
   expect '[ "$(phase)" = handoff ]' "the host handed the session off (phase handoff)" 10
   expect 'grep -q -- "--session $SESSION" "$FAKE_TUI_LOG"' "the TUI runs with --session <the chat's file>" 10
   handoff_tui
-  expect 'overlay_open layout && [ -n "$(d "d[\"handoff\"][\"overlay\"]")" ]' "the TUI shows in a dialog over the chat" 10
-  ! term_panes | grep -q " $TUI$" && ok "the TUI has no pane" || fail "the TUI got a pane: $(term_panes | grep " $TUI$")"
-  [ "$(tab_panes "$TAB" | wc -l | tr -d " ")" = 2 ] && hidden_in "$TAB" "$H" && [ "$(d 'd["zoomed"]')" = false ] \
-    && ok "the chat's tab is untouched: the chat, its hidden host, no zoom" || fail "the tab: $(tab_panes "$TAB") zoomed $(d 'd["zoomed"]')"
+  expect 'node_of "$TUI" | grep -q "^$TAB .* shown$" && [ "$(chat_hidden)" = hidden ]' "the TUI shows in the chat's tab, the chat hidden" 10
+  ! overlay_open layout && ok "no dialog" || fail "a dialog opened"
+  hidden_in "$TAB" "$H" && ok "the host stays hidden in the tab (still an agent)" || fail "the host: $(node_of "$H")"
   shot handoff-1-tui 0.6
   hc send "$TUI" q >>"$LOG" 2>&1 || hc send --force "$TUI" q >>"$LOG" 2>&1
   expect '[ "$(d "d[\"handoff\"]")" = null ]' "quitting the TUI ends the hand-off" 15
-  expect '! overlay_open layout' "the dialog closed with it" 5
+  expect '[ "$(chat_hidden)" = shown ] && ! node_of "$TUI" | grep -q shown' "the chat shows again in its place" 10
   expect '[ "$(phase)" = idle ]' "the chat resumed Pi (phase idle)" 15
   [ "$(d 'd["sessionFile"]')" = "$SESSION" ] && ok "on the same session" || fail "session changed"
-  step "/login runs pi --no-session in a dialog; Done ends it and Pi restarts"
+  step "/login runs pi --no-session in the chat's place; the switch key brings the chat back and Pi restarts"
   : >"$FAKE_TUI_LOG"
   cmd focus; sleep 0.3
   send_text "/login"
   expect 'grep -q -- "--no-session" "$FAKE_TUI_LOG"' "pi --no-session in a terminal" 10
   handoff_tui
-  expect 'overlay_open layout' "in a dialog over the chat" 10
-  ! term_panes | grep -q " $TUI$" && ok "no pane" || fail "the utility got a pane"
+  expect 'node_of "$TUI" | grep -q "^$TAB .* shown$" && [ "$(chat_hidden)" = hidden ]' "in the chat's place" 10
   shot handoff-2-login 0.6
-  do_ chat.termbar:done # the dialog bar's Done (termbar.js), by its command
-  expect '! hc get "$TUI" --json 2>/dev/null | grep -q "\"state\": *\"live\""' "Done ends the terminal" 10
-  expect '[ "$(d "d[\"handoff\"]")" = null ] && [ "$(phase)" = idle ] && ! overlay_open layout' "back, Pi restarted, the dialog gone" 15
+  do_ new-chat.switch # the switch key in the terminal, by its command
+  expect '! hc get "$TUI" --json 2>/dev/null | grep -q "\"state\": *\"live\""' "the switch key ends the terminal" 10
+  expect '[ "$(d "d[\"handoff\"]")" = null ] && [ "$(phase)" = idle ] && [ "$(chat_hidden)" = shown ]' "back, Pi restarted, the chat shown" 15
 fi
 
 # --- flow: /fork from a picker of the person's messages -----------------------------------------
