@@ -15,6 +15,7 @@ import { parseArgs } from "./args.ts";
 import type { Args } from "./args.ts";
 import { appHomeOf, labelSelf, newChatId, planSubagent } from "./subagent.ts";
 import { readChatConfig } from "./settings.ts";
+import { planVoice, which } from "./voice.ts";
 import { PaneWatch } from "./panewatch.ts";
 
 const USAGE = `herdr-chat-host serve   --chat <id> --cwd <dir> --state-dir <dir> [--provider pi] [--session <file>] [--after-pid <pid> [--model <provider/id>] [--thinking <level>]] [--app-home <dir>] [--<provider> <cmd>] [-- <agent args>]
@@ -92,8 +93,11 @@ async function serve(a: Args, extra: { hint?: string; warning?: string | null } 
 
   let shuttingDown = false;
   const term = new Terminal(process.stdout, process.stdin, provider);
+  const appHome = resolve(a.flags.get("app-home")?.[0] ?? appHomeOf(process.env, homedir()));
+  const voice = planVoice(readChatConfig(appHome).voice, (b) => which(b), process.env.HERDR_CHAT_VOICE_BIN || null);
   const chat = new Chat({
     chat: chatId, cwd, session, adapter, terminal: terminalId, log,
+    voice, voiceDir: join(stateDir, "voice"),
     afterPid: handOver ? afterPid : null,
     imageDir: join(stateDir, "images", chatId),
     stateDir,
@@ -128,7 +132,7 @@ async function serve(a: Args, extra: { hint?: string; warning?: string | null } 
 
   // Its chat's pane closed: its own hidden pane (and the tab) closes, then it exits (panewatch.ts).
   const watch = terminalId
-    ? new PaneWatch({ chat: chatId, terminal: terminalId, appHome: resolve(a.flags.get("app-home")?.[0] ?? appHomeOf(process.env, homedir())),
+    ? new PaneWatch({ chat: chatId, terminal: terminalId, appHome,
         hc: process.env.HERDR_CHAT_HC || "hc", log, onGone: () => void exit(0) })
     : null;
   const exit = async (code: number) => {

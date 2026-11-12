@@ -219,6 +219,10 @@ type ToolDetail =
 | `handoff` | | `{sessionFile}` | stops Pi (aborts first if working), releases the lock, phase → `handoff` |
 | `resume` | | `{}` | after a handoff, or to restart Pi: `--session <sessionFile>` (re-reads auth and settings) |
 | `shutdown` | | `{}` | stop Pi and the host (closing the chat) |
+| `voice_start` | | `{}` | starts dictation (`state.voice` → `recording`). Refused, with the reason, when dictation is off, set up wrong, or the tool can't record (busy, no daemon); `state.voice` is then `error` |
+| `voice_stop` | | `{}` | stops recording; `state.voice` → `transcribing`, then `idle` with `text` |
+| `voice_cancel` | | `{}` | cancels recording or transcribing; no `text` |
+| `voice_ack` | | `{}` | the client put `state.voice.text` in its composer: clears it |
 | `set_theme` | `colors: {background, foreground, muted, border, accent, ansi0..ansi15}`, `dark: boolean` | `{}` | v2: colors for host-rendered SVGs (mermaid). Re-renders the closed mermaid blocks and sends them as upserts |
 
 ## Built-in slash commands (in `state.commands`, `source: "builtin"`)
@@ -233,6 +237,7 @@ type ToolDetail =
 | `resume` | client | sessions picker (`sessions` / `switch_session`) |
 | `reload` | host | `resume` (restart Pi on the same session) |
 | `copy` | client | last assistant text to the clipboard |
+| `voice` | client | starts dictation, or stops it (`voice_start` / `voice_stop`). Only when `state.voice` is not null |
 | `tui` | client | hand off to Pi's TUI in a terminal in the chat's place (`handoff`, then `resume` when it exits) |
 | `login`, `settings`, `scoped-models` | client | run `pi --no-session` in a terminal pane, then `resume` once it exits |
 | `fork` | client | a picker of `fork_points`, then `fork` |
@@ -302,7 +307,17 @@ capabilities: {
   tui: boolean;                       // a TUI hand-off exists
 };
 permissionMode: string | null;        // current id from capabilities.permissionModes
+// Dictation (host/voice.ts). null: none (settings.json "voice" off, or auto with no tool): no button, no /voice.
+voice: { tool: "voxtype" | null;      // null: set up wrong, `error` says why
+         state: "idle" | "recording" | "transcribing" | "error";
+         error?: string;
+         text?: string;               // a finished dictation: the client inserts it at its caret, then voice_ack
+       } | null;
 ```
+
+The host runs the dictation tool, because a mod has no audio. It polls the
+tool while it records and transcribes, so a stop from the tool's own hotkey
+also gives `text`. `voice` changes flush immediately.
 
 `state.commands` (the slash menu) is per provider. The host merges its
 built-ins with the agent's commands:

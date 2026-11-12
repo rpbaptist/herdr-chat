@@ -26,6 +26,8 @@ export type BuiltinContext = {
   tuiCommands: { name: string; description: string }[];
   /** What to type into the agent's terminal for a command that opens one, or null. */
   tuiInput?: (name: string) => string | null;
+  /** Dictation is set up (host/voice.ts): /voice starts and stops it. */
+  voice?: boolean;
 };
 
 const B = (name: string, description: string, handler: "host" | "client", args?: string): Command => ({ name, description, source: "builtin", handler, ...(args ? { args } : {}) });
@@ -53,6 +55,7 @@ export function builtins(ctx: BuiltinContext): Command[] {
   out.push(B("reload", `Restart ${n} on this session (re-reads its login, settings and extensions)`, "host"));
   out.push(B("copy", "Copy the last answer", "client"));
   out.push(B("transcript", "Show the plain transcript", "client"));
+  if (ctx.voice) out.push(B("voice", "Dictate: start, or stop and put the text in the message", "client"));
   if (caps.tui) out.push(B("tui", `Continue this session in ${n}'s terminal UI`, "client"));
   utility("login", "Sign in (in a terminal)");
   utility("settings", `Open ${n}'s settings (in a terminal)`);
@@ -69,7 +72,7 @@ export function builtins(ctx: BuiltinContext): Command[] {
 }
 
 /** Every core built-in name, offered or not: an agent command with one of these names is never listed. */
-const ALL_BUILTIN_NAMES = new Set(["model", "thinking", "compact", "new", "clear", "name", "resume", "reload", "copy", "transcript", "tui", "login", "settings", "scoped-models", "fork"]);
+const ALL_BUILTIN_NAMES = new Set(["model", "thinking", "compact", "new", "clear", "name", "resume", "reload", "copy", "transcript", "voice", "tui", "login", "settings", "scoped-models", "fork"]);
 
 export function mergeCommands(builtin: Command[], agentCommands: unknown): Command[] {
   const out = [...builtin];

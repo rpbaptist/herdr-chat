@@ -23,6 +23,7 @@ a model without levels) says so in the hint line under the composer.
 | `latest` | ⇧⌘B (`cmd-shift-b`) | Ctrl+Alt+Shift+B (`ctrl-alt-shift-b`) | Scrolls to the latest message. |
 | `focusComposer` | ⌘L (`cmd-l`) | Ctrl+L (`ctrl-l`) | Puts the keyboard back in the composer and closes an open picker. |
 | `newChat` | ⇧⌘N (`cmd-shift-n`) | Ctrl+Alt+Shift+N (`ctrl-alt-shift-n`) | Opens a new chat tab with the same agent in the same folder. |
+| `dictate` | ⇧⌘D (`cmd-shift-d`) | Ctrl+Shift+D (`ctrl-shift-d`) | Starts dictation, or stops it and puts the text in the composer at the cursor. The same as the microphone button and `/voice`. While dictation runs, Esc cancels it and does not stop the agent. With no dictation tool, it says so in the hint line. |
 
 `steer` and `followUp` work in the composer only. In a menu Enter picks, and
 on an approval card with nothing typed it answers. Shift+Enter is always a new

@@ -28,6 +28,7 @@ export const SHORTCUTS = {
   latest: "Scroll to the latest message",
   focusComposer: "Focus the composer",
   newChat: "New chat in this folder, same agent",
+  dictate: "Dictate: start, or stop and put the text in the message",
 };
 
 export const actionName = (a) => `herdrchat_k_${a}`;

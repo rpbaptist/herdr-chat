@@ -32,6 +32,7 @@ import { modPanes, readDoc } from "./place.js";
 import { getDoc, hideHost, locate } from "./hostpane.js";
 import { SHORTCUTS, actionName, bindShortcuts, errors as keyErrors, keyHint, loadShortcuts, shortcuts, withKey } from "./shortcuts.js";
 import { Connection, hostTerminal, readConfig, runsHost } from "./connection.js";
+import { dictationOp } from "./dictation.js";
 import { Store } from "./store.js";
 import { Timeline } from "./timeline.js";
 import { lineOf, row } from "./cards.js";
@@ -733,6 +734,18 @@ export default class HerdrChat extends View {
       this.composer.focus();
       this.req("ack_editor_text", {}, cx);
     } else if (s.editorText == null) this.editorAcked = null;
+    // A finished dictation: its text at the caret, once (voice_ack clears it on the host).
+    const said = s.voice?.text;
+    if (said && said !== this.dictationTaken) {
+      this.dictationTaken = said;
+      this.composer.insertDictation(said);
+      this.composer.focus();
+      this.req("voice_ack", {}, cx).catch(() => {});
+    } else if (!said) this.dictationTaken = null;
+    // An error that came while the tool worked (a failed transcription, a stopped daemon): the hint line too.
+    const err = s.voice?.state === "error" ? s.voice.error ?? "error" : null;
+    if (err && err !== this.dictationError) this.flash(`Dictation: ${err}`, cx);
+    this.dictationError = err;
     if (this.composer.menu?.kind === "slash") this.updateMenu(cx);
   }
 
@@ -796,6 +809,29 @@ export default class HerdrChat extends View {
     });
   }
 
+  // ---- dictation (host/voice.ts) ----------------------------------------------------
+
+  dictating() {
+    const st = this.store.state.voice?.state;
+    return st === "recording" || st === "transcribing";
+  }
+
+  // The microphone, the dictate key and /voice: start, or stop and transcribe.
+  dictate(cx) {
+    const v = this.store.state.voice;
+    if (!v) return this.flash("Dictation is off: no dictation tool, or \"voice\" is off in settings.json", cx);
+    if (!v.tool) return this.flash(`Dictation: ${v.error}`, cx);
+    const op = dictationOp(v);
+    if (!op) return this.flash("Transcribing…", cx);
+    this.composer.focus();
+    this.fire(op, {}, cx);
+  }
+
+  cancelDictation(cx) {
+    this.fire("voice_cancel", {}, cx);
+    this.flash("Dictation cancelled", cx);
+  }
+
   abort(cx) {
     this.fire("abort", {}, cx, (d, cx) => {
       const restored = (d?.restored ?? []).filter(Boolean);
@@ -823,6 +859,7 @@ export default class HerdrChat extends View {
     if (name === "resume") return this.openSessionsPicker(cx);
     if (name === "fork") return this.openForkPicker(cx);
     if (name === "transcript") return this.showTranscript(cx);
+    if (name === "voice") return this.dictate(cx);
     if (name === "copy") {
       const text = this.store.lastAssistantText();
       if (text) {
@@ -1012,6 +1049,7 @@ export default class HerdrChat extends View {
         this.composer.focus();
         break;
       case "newChat": return this.newChat(cx);
+      case "dictate": return this.dictate(cx);
       default: this.log(`unknown shortcut ${a}`);
     }
     this.debug.mark();
@@ -1184,6 +1222,9 @@ export default class HerdrChat extends View {
   action(a, cx) {
     this.log(`action ${a}`);
     if (a === "herdrchat_paste") return this.paste(cx);
+    if (a === "herdrchat_dictate") return this.dictate(cx);
+    // Esc ends a dictation first: no picker, menu, card or agent gets it.
+    if (a === "herdrchat_escape" && !this.picker && !this.composer.menu?.items?.length && this.dictating()) return this.cancelDictation(cx);
     const pk = this.picker;
     const m = this.composer.menu?.items?.length ? this.composer.menu : null;
     const dlg = this.store.state.dialog;
@@ -1821,6 +1862,7 @@ export default class HerdrChat extends View {
       seq: this.store.seq, snapshots: this.store.snapshots,
       provider: s.provider ?? this.conn.provider ?? this.provider ?? null, providerName: this.providerName(),
       capabilities: s.capabilities ?? null, permissionMode: s.permissionMode ?? null,
+      voice: s.voice ?? null,
       phase: s.phase, error: s.error, model: s.model ? `${s.model.provider}/${s.model.id}` : null, thinking: s.thinking,
       sessionFile: s.sessionFile, sessionName: s.sessionName, usage: s.usage, queue: s.queue,
       dialog: s.dialog ? { id: s.dialog.id, method: s.dialog.method, title: s.dialog.title, value: this.dialog.field ? this.dialog.value() : null,
@@ -2029,7 +2071,7 @@ export default class HerdrChat extends View {
     const hintText = this.flashText?.text ?? (s.dialog ? (s.dialog.method === "permission" ? "Answer above · Esc denies" : "Answer above · Esc cancels") : working
       ? [sendKey && `${sendKey} ${s.capabilities?.steer === false ? "queues" : "steers"}`, followKey && `${followKey} after this run`, "Esc stops"].filter(Boolean).join(" · ")
       : this.composer.focused && !this.composer.value ? [sendKey && `${sendKey} sends`, "Shift+Enter new line", "/ commands", "@ files", this.peekMode && "Esc closes"].filter(Boolean).join(" · ") : null);
-    const composer = Popup.new("composer-anchor", this.composer.view(t, { working, footer, action: (a, cx) => this.action(a, cx) }))
+    const composer = Popup.new("composer-anchor", this.composer.view(t, { working, footer, voice: this.store.state.voice, action: (a, cx) => this.action(a, cx) }))
       .anchor("bottom_left").w_full()
       .when(Boolean(menu), (e) => e.content(div().w(this.colW()).pb(8).child(menu)));
     // Its height is in the dump: an open menu must not change it (an overlay, not the flow).

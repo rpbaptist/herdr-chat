@@ -11,13 +11,16 @@
 //       "args": ["--model", "…"],               after the agent's own arguments
 //       "env": {"KEY": "value"},                this agent's environment
 //       "tui": ["wrapper", "agent"]             the program /tui runs (its arguments kept)
-//     }
+//     },
+//     "voice": {"tool": "auto"}                 dictation: "auto", "off" or "voxtype" (host/voice.ts)
 //   }
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { parseVoiceSetting } from "./voice.ts";
+import type { ParsedVoiceSetting } from "./voice.ts";
 
 export type AgentSettings = { command: string | null; args: string[]; env: Record<string, string>; tui: string[] | null };
-export type ChatConfig = { host: string | null; node: string | null; hc: string | null; agent(id: string): AgentSettings };
+export type ChatConfig = { host: string | null; node: string | null; hc: string | null; agent(id: string): AgentSettings; voice: ParsedVoiceSetting };
 
 type Rec = Record<string, any>;
 
@@ -41,7 +44,7 @@ const strings = (v: unknown): Record<string, string> =>
 export function chatConfig(install: Rec, mine: Rec): ChatConfig {
   const str = (v: unknown) => (typeof v === "string" && v ? v : null);
   return {
-    host: str(install.host), node: str(install.node), hc: str(install.hc),
+    host: str(install.host), node: str(install.node), hc: str(install.hc), voice: parseVoiceSetting(mine.voice),
     agent(id) {
       const a: Rec = mine[id] && typeof mine[id] === "object" ? mine[id] : {};
       return { command: str(a.command) ?? str(install[id]), args: list(a.args) ?? [], env: { ...strings(mine.env), ...strings(a.env) }, tui: list(a.tui) };

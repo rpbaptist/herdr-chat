@@ -39,6 +39,9 @@ https://github.com/user-attachments/assets/cefe4c53-19f6-4c3b-8188-f8480f4c2816
   shows again in the same place and resumes the session.
 - **`/fork`** - a new session up to any earlier message, with that message
   back in the composer.
+- **Dictation** - speak your message: the microphone in the composer, the
+  dictate key or `/voice`. voxtype transcribes on your machine
+  ([Dictation](#dictation)).
 - **Continue as chat** - right-click a running Pi, Claude Code or Codex
   terminal → **Continue as chat**: the chat takes over its session. The
   switch key (Ctrl+Shift+I, ⇧⌘I on macOS) does it too. In the chat, the same
@@ -112,6 +115,7 @@ github.com/ChmaraX/herdr-chat".
 | ⇧⌘I | Ctrl+Shift+I | chat, agent terminal | Switch: in the chat, `/tui`; in a Pi, Claude Code or Codex terminal, Continue as chat; in a chat's `/tui` terminal, back to the chat |
 | ⇧⌘R | Ctrl+Shift+R | chat | Resume another session |
 | ⇧⌘N | Ctrl+Alt+Shift+N | chat | A new chat with the same agent, same folder |
+| ⇧⌘D | Ctrl+Shift+D | chat | Dictate: start, or stop and transcribe ([Dictation](#dictation)) |
 
 Change them, or bind a key per agent, in
 `~/.config/herdr-app/data/herdr-chat/keys.json`:
@@ -130,13 +134,72 @@ it; every key is optional):
   "env": { "KEY": "value" },
   "pi":     { "command": "/path/to/pi", "args": ["--model", "anthropic/claude-sonnet-4-5"] },
   "claude": { "env": { "CLAUDE_CONFIG_DIR": "/path/to/config" } },
-  "codex":  { "tui": ["my-wrapper", "codex"] }
+  "codex":  { "tui": ["my-wrapper", "codex"] },
+  "voice":  { "tool": "auto" }
 }
 ```
 
 `env` is for every agent. Per agent: `command` (instead of the one install
 found), `args` (added to the agent's), `env`, and `tui` (the program `/tui`
-runs). A new chat picks up a change.
+runs). `voice` sets dictation ([Dictation](#dictation)). A new chat picks
+up a change.
+
+## Dictation
+
+You can speak a message instead of typing it. A dictation tool on your
+machine records and transcribes. No audio goes to the agent or to a server.
+The chat supports [voxtype](https://voxtype.io) (Linux).
+
+### Set it up
+
+1. Install voxtype and make sure that `voxtype` is on your `PATH`.
+2. Start its daemon (`voxtype` or its systemd service). `voxtype status` must
+   print `idle`.
+3. Open a new chat. When the chat finds voxtype, a microphone button shows
+   next to the send button.
+
+### Dictate a message
+
+1. Click the microphone, press the dictate key (⇧⌘D on macOS, Ctrl+Shift+D
+   on Linux), or type `/voice`. The button turns red: voxtype records.
+2. Speak.
+3. Click the microphone again, or press the dictate key again (or type
+   `/voice` again). The button shows a spinner while voxtype transcribes.
+4. The text goes into the composer at the cursor. When a word touches the
+   text, the chat adds a space. Edit the text, then send it as usual.
+
+Press Esc while voxtype records or transcribes to cancel. The chat inserts no
+text, and Esc does not stop the agent. When no dictation runs, Esc stops the
+agent as before.
+
+When you stop the recording with voxtype's own hotkey, the text also comes
+into the chat that started it.
+
+### When it does not work
+
+| What you see | Why | What to do |
+|---|---|---|
+| No microphone button | `voice.tool` is `"off"`, or voxtype is not on `PATH` | Install voxtype, then open a new chat |
+| A red alert icon in place of the microphone | The setting is wrong, or `"tool": "voxtype"` but voxtype is not on `PATH` | Hover over it to see the reason. Correct `settings.json` |
+| "voxtype can't record: stopped" | The voxtype daemon does not run | Start the daemon |
+| "voxtype is busy (recording)" | Another program records with voxtype | Stop that recording, then try again |
+
+### Settings
+
+In `settings.json` ([Configuration](#configuration)):
+
+```json
+{ "voice": { "tool": "auto" } }
+```
+
+| `tool` | What it does |
+|---|---|
+| `"auto"` (the default) | Uses voxtype when it is on `PATH`. If it is not, the chat shows no button |
+| `"voxtype"` | Uses voxtype. If it is not on `PATH`, the button shows the reason |
+| `"off"` | No dictation: no button, no `/voice` |
+
+The chat reads the setting when it starts. To change the dictate key, set
+`dictate` in `keys.json` ([KEYS.md](herdr-app/mods/chat/KEYS.md)).
 
 ## Limitations
 

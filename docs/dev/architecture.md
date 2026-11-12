@@ -31,6 +31,8 @@ Herdr tab
   patches (`server.ts`).
 - Renders for the wire (`render.ts`): code highlighted with highlight.js,
   Mermaid turned into a self-contained SVG, diffs and tool output as lines.
+- Runs dictation (`voice.ts`): voxtype records and transcribes, and the
+  host gives the text to the chat in `state.voice`. A mod has no audio.
 - Reports Herdr status with OSC 7501, turns `hc send` input on its stdin
   into messages, and prints a plain transcript for `hc read` (`terminal.ts`).
 - Writes the chat registry and a lock on the session file (`registry.ts`).

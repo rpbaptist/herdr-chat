@@ -18,6 +18,8 @@ import { ChatClient } from "./client.ts";
 import { FileIndex } from "./files.ts";
 import { clipboardImage, loadImages } from "./clipboard.ts";
 import { Renderer, diffLines } from "./render.ts";
+import { Dictation } from "./voice.ts";
+import type { Voice, VoicePlan } from "./voice.ts";
 import { presentTool, prettyArgs } from "./tools.ts";
 import { AgentError } from "./providers/types.ts";
 import type {
@@ -78,9 +80,11 @@ export type ChatState = {
   permissionMode: string | null;
   handoff: Handoff | null;
   conflict: Conflict | null;
+  /** Dictation (host/voice.ts): null = none, no button and no /voice. */
+  voice: Voice | null;
 };
 
-const URGENT = new Set<keyof ChatState>(["phase", "dialog", "dialogsPending", "queue", "error", "editorText", "handoff", "conflict"]);
+const URGENT = new Set<keyof ChatState>(["phase", "dialog", "dialogsPending", "queue", "error", "editorText", "handoff", "conflict", "voice"]);
 
 /**
  * The two lanes above the composer. Steering is the agent's queue; the
@@ -131,6 +135,10 @@ export type ChatOptions = {
   onSessionFile?: (file: string | null) => void;
   onVersion?: (v: string | null) => void;
   onShutdown?: () => void;
+  /** Dictation: the tool to run, a setup error to show, or null (none). */
+  voice?: VoicePlan;
+  /** Where dictation writes its text files (<stateDir>/voice). */
+  voiceDir?: string | null;
 };
 
 /**
@@ -198,6 +206,7 @@ export class Chat {
   private sessionId: string | null = null;
   private files: FileIndex;
   private generation = 0;
+  private dictation: Dictation | null = null;
 
   constructor(opts: ChatOptions) {
     this.opts = opts;
@@ -210,8 +219,17 @@ export class Chat {
       model: null, thinking: null, usage: null, queue: { steering: [], followUp: [] }, dialog: null, dialogsPending: 0,
       statuses: [], widgets: [], title: null, editorText: null, commands: [],
       provider: this.adapter.id, providerName: this.adapter.name, capabilities: structuredClone(this.adapter.capabilities), permissionMode: null,
-      handoff: null, conflict: null,
+      handoff: null, conflict: null, voice: null,
     };
+    const v = opts.voice ?? null;
+    if (v && "error" in v) this.state.voice = { tool: null, state: "error", error: v.error };
+    else if (v) {
+      this.dictation = new Dictation({
+        tool: v.tool, bin: v.bin, dir: opts.voiceDir ?? join(opts.stateDir ?? join(opts.cwd, ".herdr-chat"), "voice"),
+        onChange: (voice) => this.set({ voice }), log: opts.log,
+      });
+      this.state.voice = this.dictation.voice;
+    }
     this.state.commands = this.menu();
   }
 
@@ -225,6 +243,7 @@ export class Chat {
       name: a.name, capabilities: this.state.capabilities, tuiCommands: a.tuiCommands?.() ?? [],
       utility: (n) => a.utilityCommand?.(n) ?? null,
       tuiInput: (n) => a.tuiInput?.(n) ?? null,
+      voice: this.state.voice !== null,
     });
     return mergeCommands(builtin, this.agentCommands);
   }
@@ -1603,8 +1622,15 @@ export class Chat {
     if (this.state.phase === "error") throw new Error(this.state.error ?? `${this.agent} failed to start`);
   }
 
+  /** Dictation ops: the tool, or why there is none. */
+  private requireDictation(): Dictation {
+    if (this.dictation) return this.dictation;
+    throw new Error(this.state.voice?.error ?? "Dictation is off");
+  }
+
   async shutdown(): Promise<void> {
     this.stopHandoffWatch();
+    this.dictation?.dispose();
     for (const s of this.sinks) s.bye("shutdown");
     await this.stopAgent();
     this.opts.onShutdown?.();
@@ -1698,6 +1724,18 @@ export class Chat {
         return {};
       case "shutdown":
         setImmediate(() => void this.shutdown());
+        return {};
+      case "voice_start":
+        await this.requireDictation().start();
+        return {};
+      case "voice_stop":
+        await this.requireDictation().stop();
+        return {};
+      case "voice_cancel":
+        await this.requireDictation().cancel();
+        return {};
+      case "voice_ack":
+        this.dictation?.ack();
         return {};
       case "set_theme":
         this.setTheme(a.colors, a.dark);

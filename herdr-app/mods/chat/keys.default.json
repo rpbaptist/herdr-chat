@@ -13,6 +13,7 @@
   "latest": "cmd-shift-b",
   "focusComposer": "cmd-l",
   "newChat": "cmd-shift-n",
+  "dictate": "cmd-shift-d",
   "notMacos": {
     "model": "ctrl-shift-m",
     "effort": "ctrl-alt-shift-t",
@@ -22,6 +23,7 @@
     "resume": "ctrl-shift-r",
     "latest": "ctrl-alt-shift-b",
     "focusComposer": "ctrl-l",
-    "newChat": "ctrl-alt-shift-n"
+    "newChat": "ctrl-alt-shift-n",
+    "dictate": "ctrl-shift-d"
   }
 }

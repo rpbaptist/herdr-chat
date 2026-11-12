@@ -1,0 +1,42 @@
+#!/bin/sh
+# A stand-in for voxtype (tests/host/voice.test.ts), so a test never uses the
+# microphone. State in $FAKE_VOXTYPE_DIR:
+#   state     idle | recording | transcribing (absent: idle)
+#   calls.log one line per call
+#   text      what the next transcription gives
+#   stopped   present: the daemon doesn't run (`status` prints "stopped")
+#   fail      present: each `record` command fails with its content
+#   done      present: the .done marker to write in place of {"status":"ok"}
+# `record stop` writes the result FAKE_VOXTYPE_DELAY seconds later (default 0.3).
+d="$FAKE_VOXTYPE_DIR"
+echo "$*" >> "$d/calls.log"
+state() { cat "$d/state" 2>/dev/null || echo idle; }
+case "$1" in
+  status)
+    if [ -e "$d/stopped" ]; then echo stopped; else state; fi
+    exit 0 ;;
+  record)
+    if [ -e "$d/fail" ]; then cat "$d/fail" >&2; exit 1; fi
+    case "$2" in
+      start)
+        f="${3#--file=}"
+        echo "$f" > "$d/file"
+        echo recording > "$d/state" ;;
+      stop)
+        echo transcribing > "$d/state"
+        f="$(cat "$d/file")"
+        (
+          sleep "${FAKE_VOXTYPE_DELAY:-0.3}"
+          [ "$(state)" = transcribing ] || exit 0
+          cat "$d/text" > "$f" 2>/dev/null || : > "$f"
+          if [ -e "$d/done" ]; then cat "$d/done" > "$f.done"; else echo '{"status":"ok"}' > "$f.done"; fi
+          echo idle > "$d/state"
+        ) > /dev/null 2>&1 &
+        ;;
+      cancel)
+        echo idle > "$d/state" ;;
+    esac
+    exit 0 ;;
+esac
+echo "fake voxtype: unknown command $*" >&2
+exit 2

@@ -15,7 +15,8 @@
 
 import { div } from "gpui-kit";
 import { v_flex, h_flex, TextareaState, Textarea } from "gpui-base";
-import { alpha, icon } from "./util.js";
+import { alpha, icon, spinner } from "./util.js";
+import { dictationSpaces, editEnd } from "./dictation.js";
 import { follow } from "./menus.js";
 import { keyHint } from "./shortcuts.js";
 import { window as herdrWindow } from "herdr";
@@ -178,6 +179,30 @@ export class Composer {
     this.menu = null;
   }
 
+  // Dictated text at the caret (the state has no getter for it, so the edit
+  // itself says where it went), with a space where a word touches either end.
+  insertDictation(text) {
+    const before = this.ta.value();
+    this.ta.replace(text);
+    const after = this.ta.value();
+    const end = editEnd(before, after);
+    const start = end - text.length;
+    const { lead, trail } = dictationSpaces(after, start, end);
+    if (trail) {
+      this.ta.set_selected_range({ start: end, end });
+      this.ta.replace(" ");
+    }
+    if (lead) {
+      this.ta.set_selected_range({ start, end: start });
+      this.ta.replace(" ");
+    }
+    const caret = end + (lead ? 1 : 0) + (trail ? 1 : 0);
+    this.ta.set_selected_range({ start: caret, end: caret });
+    this.value = this.ta.value();
+    this.cursor = caret;
+    this.history = null;
+  }
+
   clear() {
     this.set("");
     this.chips = [];
@@ -270,14 +295,37 @@ export class Composer {
       .tooltip(stop ? `Stop (Esc${keyHint("stop") ? ` · ${keyHint("stop")}` : ""})` : working ? "Steer (Enter)" : "Send (Enter)")
       .on_click((_e, cx) => c.action(stop ? "herdrchat_stop" : "herdrchat_enter", cx))
       .child(icon(stop ? "square" : "arrow-up", stop ? 11 : 15));
+    const mic = c.voice ? micButton(t, c) : null;
     return v_flex().w_full().rounded(14).border_1().border_color(this.focused ? alpha(t.accent, 0.55) : t.input).bg(t.surface)
       .when(this.focused, (e) => e.shadow_sm())
       .child(wrap)
       .when(chips.length > 0, (e) => e.child(h_flex().px(12).pb(6).gap(6).flex_wrap().children(chips)))
       .child(h_flex().h(42).pl(8).pr(6).gap(4).items_center()
         .child(h_flex().flex_1().min_w(0).gap(2).items_center().overflow_hidden().child(c.footer ?? div())) // clips, never under the button
+        .when(Boolean(mic), (e) => e.child(mic))
         .child(btn));
   }
+}
+
+// The microphone (host/voice.ts): idle, recording (red), transcribing (a
+// spinner), error (its reason in the tooltip; a click tries again).
+function micButton(t, c) {
+  const v = c.voice;
+  const key = keyHint("dictate");
+  const k = key ? ` (${key})` : "";
+  const tip = v.state === "recording" ? `Stop and transcribe${k} · Esc cancels`
+    : v.state === "transcribing" ? "Transcribing… · Esc cancels"
+    : v.state === "error" ? `Dictation: ${v.error ?? "error"}`
+    : `Dictate with ${v.tool}${k}`;
+  const rec = v.state === "recording";
+  const err = v.state === "error";
+  return h_flex().id("mic").flex_none().w(30).h(30).rounded(10).items_center().justify_center().cursor_pointer()
+    .bg(rec ? t.ansi1 : alpha(t.background, 0))
+    .text_color(rec ? t.background : err ? t.ansi1 : t.dim)
+    .hover((s) => (rec ? s.opacity(0.85) : s.bg(t.hover).text_color(err ? t.ansi1 : t.foreground)))
+    .tooltip(tip)
+    .on_click((_e, cx) => c.action("herdrchat_dictate", cx))
+    .child(v.state === "transcribing" ? spinner(13) : icon(err ? "alert" : "mic", 15));
 }
 
 // The pill a skill token draws in the text (cards.js draws the same in a sent message).
@@ -287,15 +335,6 @@ function skillPillEl(tok, t) {
   return h_flex().h(h).px(6).gap(4).items_center().rounded(5).text_size(12.5).font_medium()
     .bg(alpha(t.accent, tok.selected ? 0.3 : 0.14)).text_color(t.accent)
     .child(icon("book", 11.5)).child(tok.token.label ?? tok.token.text);
-}
-
-// Where an edit from `a` to `b` ends in `b`: after what was typed or pasted.
-function editEnd(a, b) {
-  let p = 0;
-  while (p < a.length && p < b.length && a[p] === b[p]) p++;
-  let s = 0;
-  while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++;
-  return b.length - s;
 }
 
 function escapeRe(s) {

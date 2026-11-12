@@ -40,6 +40,12 @@ export type HostOptions = {
   agent?: string;
   /** More serve flags, before `--` (e.g. --after-pid). */
   hostArgs?: string[];
+  /**
+   * The app home's settings.json (HERDR_APP_HOME is the run's own app dir, so
+   * the person's settings never reach a test). Default: dictation off, so a
+   * voxtype on this machine's PATH stays out of the chat.
+   */
+  settings?: object;
 };
 
 export function sleep(ms: number): Promise<void> {
@@ -81,6 +87,9 @@ export class Host {
     const env: Record<string, string> = {};
     for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !k.startsWith("HC_") && !k.startsWith("HERDR_")) env[k] = v;
     env.FAKE_PI_LOG = this.piLog;
+    env.HERDR_APP_HOME = join(this.dir, "app");
+    mkdirSync(join(env.HERDR_APP_HOME, "data", "herdr-chat"), { recursive: true });
+    writeFileSync(join(env.HERDR_APP_HOME, "data", "herdr-chat", "settings.json"), JSON.stringify(this.opts.settings ?? { voice: { tool: "off" } }));
     env.FAKE_PI_SPEED = String(this.opts.speed ?? 4);
     if (this.opts.scenario) {
       let path: string;
