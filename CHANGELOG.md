@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0](https://github.com/rpbaptist/herdr-chat/compare/v0.2.0...v0.3.0) (2026-11-12)
+
+
+### Features
+
+* **chat:** dictate a message with a microphone button, a key and /voice ([cc007df](https://github.com/rpbaptist/herdr-chat/commit/cc007dfb12dd876a9a48f2faebc95ee3d20c4311)), closes [#5](https://github.com/rpbaptist/herdr-chat/issues/5)
+* **chat:** one key switches between the chat and the agent's TUI ([c67c4a2](https://github.com/rpbaptist/herdr-chat/commit/c67c4a24013488847f94c95fd3421e8faccfd8d9)), closes [#3](https://github.com/rpbaptist/herdr-chat/issues/3)
+* **chat:** show the terminal UI in the chat's place, not in a dialog ([919f4cb](https://github.com/rpbaptist/herdr-chat/commit/919f4cb2122b4db8f8f0ee1ffa49865624be274b))
+
+
+### Bug Fixes
+
+* **chat:** continue as chat closes the TUI's pane when a nested shell started it ([1f1e3a8](https://github.com/rpbaptist/herdr-chat/commit/1f1e3a8be45c63435c3ab283d4bf73299a97e07e))
+* **chat:** continue as chat on a Claude TUI with no messages starts a new chat in its place ([5038921](https://github.com/rpbaptist/herdr-chat/commit/50389214c16a5ea7c2f5b4f7642aaa271f9dff52))
+* **chat:** Ctrl+V pastes a clipboard image off macOS ([4cd8c21](https://github.com/rpbaptist/herdr-chat/commit/4cd8c2112d3355d0d46407e8e04f5db49082f20f))
+* **chat:** use Ctrl, not Super, for the chat keys off macOS ([#9](https://github.com/rpbaptist/herdr-chat/issues/9)) ([6f02cea](https://github.com/rpbaptist/herdr-chat/commit/6f02cea7dfcbb18958ac640d3b9d984d8c99859a)), closes [#2](https://github.com/rpbaptist/herdr-chat/issues/2)
+* **host:** paste clipboard images and downscale them on Linux ([#8](https://github.com/rpbaptist/herdr-chat/issues/8)) ([a75685b](https://github.com/rpbaptist/herdr-chat/commit/a75685b367a98f42940f2f91721c2f8d11d9a568)), closes [#1](https://github.com/rpbaptist/herdr-chat/issues/1)
+
 ## [0.2.0](https://github.com/ChmaraX/herdr-chat/compare/v0.1.3...v0.2.0) (2026-11-10)
 
 
