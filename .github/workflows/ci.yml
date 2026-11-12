@@ -6,11 +6,21 @@ on:
 
 jobs:
   test:
-    # macOS only for 0.1: the Herdr app is macOS-first. No E2E here: it needs
-    # the app (tests/e2e, tests/release/install-e2e.sh run locally).
-    runs-on: macos-latest
+    # Linux and macOS: each runs its own platform's tests
+    # (clipboard-linux.test.ts only on Linux). No E2E here: it needs the app
+    # (tests/e2e, tests/release/install-e2e.sh run locally), and
+    # install.test.ts skips its install.sh test.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # The image downscale (images.test.ts): sips on macOS, ImageMagick on Linux.
+      - name: ImageMagick (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends imagemagick
       # The release's minimum (scripts/build.mjs NODE_MIN): the built host's suite runs on it.
       - uses: actions/setup-node@v4
         with:
@@ -30,7 +40,8 @@ jobs:
         run: sh -n install.sh && bash -n install/app.sh && bash -n tests/release/install-e2e.sh
       - run: npm run build
       - name: the archive matches SHA256SUMS
-        run: cd dist && shasum -a 256 -c SHA256SUMS
+        # shasum on macOS, sha256sum on Linux (install.sh uses the same two tools).
+        run: cd dist && if [ "$RUNNER_OS" = macOS ]; then shasum -a 256 -c SHA256SUMS; else sha256sum -c SHA256SUMS; fi
       - name: smoke the built host on Node 20
         run: HERDR_CHAT_NODE="$NODE_MIN_BIN" dist/herdr-chat-*/bin/herdr-chat-host --help
       - name: the host suite against the built host, on Node 20

@@ -28,7 +28,7 @@ Tell the person first what it does:
 - downloads the release (`herdr-chat-<version>.tar.gz`) from GitHub,
   checks it against the release's `SHA256SUMS`, and unpacks it to
   `~/.local/share/herdr-chat/<version>`, with a `current` link to it;
-- needs macOS, Herdr 0.1.12 or later with `hc` on `PATH`, Node 20 or
+- needs macOS or Linux, Herdr 0.1.12 or later with `hc` on `PATH`, Node 20 or
   later, and at least one agent on `PATH`: `pi`, `claude` or `codex`. A
   Herdr newer than the tested 0.1.14 gets a warning; an older one than
   0.1.12 is refused;
@@ -37,8 +37,10 @@ Tell the person first what it does:
   right-click menu becomes `chat-menu`, and an empty `new-chat` block floats
   in it. A slot another plugin holds is left to that plugin, and the install
   says what that costs;
-- binds ⌘I to the launcher (⌘J A when ⌘I is taken). It never replaces a key
-  of the person's unless they asked for that key;
+- binds the launcher key: ⌘I on macOS (⌘J A when ⌘I is taken),
+  Ctrl+Alt+Shift+P on Linux. It never replaces a key of the person's unless
+  they asked for that key. On Linux the chat's keys are other chords, with
+  Ctrl in place of ⌘ and often Alt added (`mods/chat/KEYS.md`);
 - writes the `hc` templates `pi-chat`, `claude-chat` and `codex-chat`, and a
   short marked note in each installed agent's instruction file
   (`~/.pi/agent/AGENTS.md`, `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`)
@@ -54,9 +56,10 @@ install changed, and removes the unpacked release.
 
 ## What you see
 
-- **The launcher** (⌘I): a small dialog with **P**i, **C**laude Code and
-  Code**X** (only the installed ones). Enter alone takes the last pick. The
-  chat opens in a new tab, in the focused terminal's folder.
+- **The launcher** (⌘I, Ctrl+Alt+Shift+P on Linux): a small dialog with
+  **P**i, **C**laude Code and Code**X** (only the installed ones). Enter alone
+  takes the last pick. The chat opens in a new tab, in the focused terminal's
+  folder.
 - **The chat**: the timeline (user bubbles, answers in markdown with highlighted code and
   Mermaid diagrams, thinking, tool cards with their output and diffs,
   approval cards, notices); the composer, with the model, effort and
@@ -138,17 +141,20 @@ install changed, and removes the unpacked release.
 - Some screens exist only in the TUIs (Pi extension panels, Claude Code's
   and Codex's `/mcp` and `/permissions`): `/tui`.
 - Continue as chat is Pi only; spaces on other machines open the TUI.
-- macOS only.
+- On Linux, pasting a copied image needs `wl-paste` (Wayland) or `xclip`
+  (X11), and downscaling a large image needs ImageMagick. Without
+  ImageMagick, the image goes as it is.
+- Not tested on Windows.
 
 ## Done when
 
 - `herdr-app check` passes for each installed mod, and `herdr-app status`
   shows no errors.
-- ⌘I opens the launcher, and P, C and X open a chat with that agent in a
-  new tab.
-- A prompt streams an answer; a tool call shows its card and an approval
-  card answers with 1, 2 or 3; Enter while it works steers, ⌥Enter queues a
-  follow-up, Esc stops it.
+- The launcher key (⌘I, or Ctrl+Alt+Shift+P on Linux) opens the launcher,
+  and P, C and X open a chat with that agent in a new tab.
+- A prompt streams an answer; a tool call shows its card and an approval card
+  answers with 1, 2 or 3; Enter while it works steers, ⌥Enter (Alt+Enter)
+  queues a follow-up, Esc stops it.
 - The agents list shows the chat's status; `hc send` reaches it and `hc read`
   prints its transcript.
 - `hc run --bg --name x pi-chat "…"` shows a row under its parent that

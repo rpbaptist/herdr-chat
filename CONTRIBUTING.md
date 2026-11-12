@@ -2,8 +2,9 @@
 
 ## Setup
 
-You need what [the README](README.md#requirements) lists (macOS, the Herdr app,
-herdr-core, an agent), plus git and **Node 24 or later**: a checkout runs the
+You need what [the README](README.md#requirements) lists (macOS or Linux, the
+Herdr app, herdr-core, an agent; on Linux, `wl-paste` or `xclip` and
+ImageMagick), plus git and **Node 24 or later**: a checkout runs the
 host's TypeScript directly, where a release ships it built and runs on Node
 20. With the Herdr app open:
 
@@ -27,20 +28,25 @@ release is built (below).
 ```sh
 npm test                    # the host end to end: the real host, a real TCP client, fake Pi/Claude/Codex
 npx tsc --noEmit -p .       # typecheck the host (npm run typecheck)
-tests/e2e/run.sh            # the mods in a private Herdr app
+tests/e2e/run.sh            # the mods in a private Herdr app (macOS only)
 ```
+
+Some tests run on one platform only. `clipboard-linux.test.ts` runs on Linux
+(fake `wl-paste` and `xclip`), and the image downscale in `images.test.ts`
+needs `sips` (macOS) or ImageMagick (Linux). Without one of them, it checks
+that the image goes to the agent at its full size.
 
 - **`npm test`** runs `tests/host/*.test.ts`: the real `herdr-chat-host`
   process against the fake agents (`tests/fake-pi/`, `tests/fake-claude/`,
   `tests/fake-codex/`) and recorded real sessions (`tests/fixtures/`).
   `LIVE=1 npm test` adds one run on real Pi.
-- **`tests/e2e/run.sh [artifacts dir] [flows…]`** starts a private Herdr app
-  with its own app home and its own herdr-core session, installs the mods
-  there, and drives them as a person does: the launcher key, typing, Enter,
-  Esc. Keys go to the private app's process only; it never touches your
-  window. Checks read the host's state and the mod's debug dump, not the
-  screen. Screenshots, dumps and logs go to `tests/artifacts/` (not
-  committed).
+- **`tests/e2e/run.sh [artifacts dir] [flows…]`** (macOS only, issue #12)
+  starts a private Herdr app with its own app home and its own herdr-core
+  session, installs the mods there, and drives them as a person does: the
+  launcher key, typing, Enter, Esc. Keys go to the private app's process only;
+  it never touches your window. Checks read the host's state and the mod's
+  debug dump, not the screen. Screenshots, dumps and logs go to
+  `tests/artifacts/` (not committed).
   - **`E2E_NO_VISUAL=1`** never brings the private window to the front. Use
     it while you work in other apps: GPUI draws only a frontmost window, so
     the screenshot passes would otherwise take the front for a moment and
@@ -94,9 +100,10 @@ npm run test:install        # the release install on a scratch home: install, up
 ```
 
 `npm run test:install` (`tests/release/install-e2e.sh`) needs `herdr-app` and
-`hc` on `PATH` but no running app. CI (`ci.yml`, macOS) runs the typecheck,
-`npm test`, the build and `test:built` on Node 20. It doesn't run the e2e
-suites, which need the app.
+`hc` on `PATH` but no running app. CI (`ci.yml`, on Linux and macOS) runs the
+typecheck, `npm test`, the build and `test:built` on Node 20. It doesn't run
+the e2e suites or `test:install`, which need the app, and `install.test.ts`
+skips its `install.sh` test there.
 
 ## Design docs
 

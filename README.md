@@ -56,7 +56,13 @@ https://github.com/user-attachments/assets/cefe4c53-19f6-4c3b-8188-f8480f4c2816
 - **Node 20** or later.
 - At least one agent on `PATH`, signed in: `pi` (1.5 or later), `claude` or
   `codex`.
-- macOS.
+- **macOS or Linux.** On Linux, also:
+  - `wl-paste` (Wayland) or `xclip` (X11), to paste a copied image;
+  - ImageMagick (`magick`, or `identify` and `convert`), to downscale a large
+    image before it goes to the agent. Without it, the image goes as it is.
+
+  The keys differ: Linux has its own chords, with Ctrl in place of ⌘ and
+  often Alt added ([Keys](#keys)).
 
 ## Install
 
@@ -66,10 +72,11 @@ With the Herdr app open:
 curl -fsSL https://raw.githubusercontent.com/ChmaraX/herdr-chat/main/install.sh | sh -s -- --app
 ```
 
-It downloads the release, checks it, adds its mods, binds ⌘I to the
-launcher where it's free, and points the agents list and the right-click
-menu at the chat. No clone, no npm install. Or ask the agent in your Herdr
-window to "add the mod at github.com/ChmaraX/herdr-chat".
+It downloads the release, checks it, adds its mods, binds the launcher key (⌘I
+on macOS, Ctrl+Alt+Shift+P on Linux) where it's free, and points the agents
+list and the right-click menu at the chat. No clone, no npm install. Or ask
+the agent in your Herdr window to "add the mod at
+github.com/ChmaraX/herdr-chat".
 
 - **Update:** run the same command again. Open chats keep the old version
   until you reopen them.
@@ -81,10 +88,11 @@ window to "add the mod at github.com/ChmaraX/herdr-chat".
 
 ## Quick start
 
-1. **Open a chat.** ⌘I, then **P**i, **C**laude Code or Code**X**. It opens
-   in a new tab, in the focused terminal's folder.
+1. **Open a chat.** ⌘I (Ctrl+Alt+Shift+P on Linux), then **P**i, **C**laude
+   Code or Code**X**. It opens in a new tab, in the focused terminal's folder.
 2. **Talk to it.** Enter sends. `@` finds files; paste or drop an image to
-   attach it. While it works, Enter steers and ⌥Enter queues; Esc stops.
+   attach it. While it works, Enter steers and ⌥Enter (Alt+Enter) queues;
+   Esc stops.
 3. **Pick a model or effort.** Click the chips under the composer, or
    `/model` and `/thinking`.
 4. **Approve.** An approval card takes 1, 2 or 3: allow once, always, deny.
@@ -132,7 +140,8 @@ runs). A new chat picks up a change.
 
 ## Limitations
 
-- **macOS only.** Spaces on other machines still open the agent's TUI.
+- **Not tested on Windows.**
+- **A space on another machine** opens the agent's TUI, not a chat.
 - **Run the install again after a Herdr update.** The agents list and the
   right-click menu are copies of Herdr's, made at install time.
 - **Continue as chat on Codex guesses the session** when Codex runs on its
